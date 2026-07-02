@@ -4,3 +4,19 @@ INFO:     Started reloader process [4956] using WatchFiles
 INFO:     Started server process [15420]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'main.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [15420]
+WARNING:  WatchFiles detected changes in 'main.py'. Reloading...
+INFO:     Started server process [30172]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [30172]
+INFO:     Started server process [1500]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.

@@ -33,9 +33,50 @@ from sqlalchemy.orm import DeclarativeBase
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-BASE_DIR = Path(__file__).resolve().parent
-DB_PATH  = BASE_DIR / "guardian_angel.db"
+BASE_DIR   = Path(__file__).resolve().parent
+DB_PATH    = BASE_DIR / "guardian_angel.db"
 VAPID_PATH = BASE_DIR / "vapid.json"
+ICONS_DIR  = BASE_DIR / "icons"
+
+
+# ─────────────────────────────────────────────
+#  Icon generation (pure stdlib — no Pillow)
+# ─────────────────────────────────────────────
+def _make_png(size: int) -> bytes:
+    import struct, zlib
+    cx = cy = size / 2
+    outer, inner, dot_r = size * 0.40, size * 0.28, size * 0.11
+    bg, ring, dot = (10, 13, 15), (0, 229, 160), (0, 180, 120)
+    rows = []
+    for y in range(size):
+        row = bytearray([0])
+        for x in range(size):
+            d = ((x - cx + .5)**2 + (y - cy + .5)**2) ** .5
+            if d <= dot_r:
+                row.extend(dot)
+            elif inner <= d <= outer:
+                t = min(1.0, max(0.0, min(d - inner, outer - d) / 1.5))
+                row.extend(int(bg[i] + t * (ring[i] - bg[i])) for i in range(3))
+            else:
+                row.extend(bg)
+        rows.append(bytes(row))
+    raw = b''.join(rows)
+    def chunk(name, data):
+        crc = zlib.crc32(name + data) & 0xffffffff
+        return struct.pack('>I', len(data)) + name + data + struct.pack('>I', crc)
+    return (b'\x89PNG\r\n\x1a\n'
+            + chunk(b'IHDR', struct.pack('>IIBBBBB', size, size, 8, 2, 0, 0, 0))
+            + chunk(b'IDAT', zlib.compress(raw, 6))
+            + chunk(b'IEND', b''))
+
+
+def _ensure_icons():
+    ICONS_DIR.mkdir(exist_ok=True)
+    for size in (72, 96, 128, 144, 152, 192, 384, 512):
+        p = ICONS_DIR / f"icon-{size}.png"
+        if not p.exists():
+            p.write_bytes(_make_png(size))
+            print(f"[ICONS] Generated icon-{size}.png")
 
 # ─────────────────────────────────────────────
 #  Database
@@ -498,6 +539,7 @@ async def watchdog():
 # ─────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(_):
+    _ensure_icons()
     _load_or_create_vapid()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
