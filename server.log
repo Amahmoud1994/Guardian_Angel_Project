@@ -1,0 +1,7 @@
+[VAPID] New keys generated and saved to vapid.json
+INFO:     127.0.0.1:49334 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49334 - "GET /api/push/vapid-key HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49334 - "GET /manifest.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49334 - "GET /sw.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49334 - "GET /icons/icon-192.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52110 - "GET /health HTTP/1.1" 200 OK
