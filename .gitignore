@@ -1,0 +1,21 @@
+# Secrets — never commit these
+.env
+vapid.json
+case_key.json
+
+# Local dev database
+guardian_angel.db
+guardian_angel.db-journal
+
+# Logs
+server.log
+server_err.log
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Editors / OS
+.vscode/
+.DS_Store

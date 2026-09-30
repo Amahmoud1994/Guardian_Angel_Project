@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Guardian Angel — Guardian Reply</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg: #0a0d0f; --surface: #111518; --card: #161b1f; --border: #1f2a30;
+  --accent: #00e5a0; --accent2: #ff4757; --accent3: #ffd32a;
+  --text: #e8eef2; --muted: #5a7080; --mono: 'Space Mono', monospace; --sans: 'Syne', sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;}
+body{max-width:480px;margin:0 auto;padding:20px 16px 60px;}
+.hdr{display:flex;align-items:center;gap:10px;margin-bottom:20px;}
+.logo-ring{width:32px;height:32px;border-radius:50%;border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.logo-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);}
+.hdr-title{font-size:16px;font-weight:800;}
+.hdr-sub{font-size:10px;color:var(--muted);font-family:var(--mono);letter-spacing:.5px;}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;}
+.card-label{font-size:10px;color:var(--muted);font-family:var(--mono);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;}
+.status-line{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;}
+.chip{display:inline-block;padding:3px 9px;border-radius:20px;font-size:10px;font-family:var(--mono);background:var(--surface);border:1px solid var(--border);}
+.chip.green{background:#0e1f18;border-color:var(--accent);color:var(--accent);}
+.chip.red{background:#1f0e0e;border-color:var(--accent2);color:var(--accent2);}
+.chip.yellow{background:#1e1a0e;border-color:var(--accent3);color:var(--accent3);}
+.chip.gray{background:#141a1e;border-color:var(--muted);color:var(--muted);}
+.case-row{display:flex;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px;}
+.case-row:last-child{border-bottom:none;}
+.case-key{color:var(--muted);font-family:var(--mono);min-width:110px;flex-shrink:0;}
+.case-val{word-break:break-word;}
+.msg-list{display:flex;flex-direction:column;gap:8px;max-height:340px;overflow-y:auto;margin-bottom:4px;}
+.msg{padding:10px 12px;border-radius:10px;font-size:13px;line-height:1.5;max-width:85%;}
+.msg.from-user{background:#0e1a14;border:1px solid #1f4a38;align-self:flex-start;}
+.msg.from-guardian{background:var(--surface);border:1px solid var(--border);align-self:flex-end;}
+.msg-label{font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:3px;}
+.empty-state{text-align:center;color:var(--muted);font-size:12px;padding:20px;}
+input,textarea{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:11px 14px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;resize:vertical;}
+input:focus,textarea:focus{border-color:var(--accent);}
+.field{margin-bottom:10px;}
+.field label{display:block;font-size:11px;color:var(--muted);margin-bottom:6px;font-family:var(--mono);}
+.btn{width:100%;padding:13px;border-radius:10px;border:none;font-family:var(--sans);font-size:14px;font-weight:700;cursor:pointer;background:var(--accent);color:#0a0d0f;}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--card);border:1px solid var(--accent);color:var(--accent);border-radius:10px;padding:10px 20px;font-size:13px;opacity:0;transition:all .3s;pointer-events:none;white-space:nowrap;z-index:999;}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+#toast.err{border-color:var(--accent2);color:var(--accent2);}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="logo-ring"><div class="logo-dot"></div></div>
+  <div>
+    <div class="hdr-title">Guardian Angel</div>
+    <div class="hdr-sub">GUARDIAN VIEW · NO LOGIN NEEDED</div>
+  </div>
+</div>
+
+<div id="loading" class="card"><div class="empty-state">Loading…</div></div>
+
+<div id="content" style="display:none">
+  <div class="card">
+    <div class="card-label">Status</div>
+    <div class="status-line">
+      <span class="chip" id="g-status">—</span>
+      <span class="chip" id="g-level">—</span>
+    </div>
+    <div id="g-case-grid"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Messages</div>
+    <div class="msg-list" id="g-msg-list"><div class="empty-state">No messages yet.</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Send a Reply</div>
+    <div class="field"><label>Your Name</label><input id="g-name" placeholder="e.g. Jordan (Mom)"/></div>
+    <div class="field"><label>Message</label><textarea id="g-text" rows="3" placeholder="Type a short message…"></textarea></div>
+    <button class="btn" id="g-send-btn" onclick="sendReply()">Send Reply</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const sessionId = window.location.pathname.split('/').filter(Boolean).pop();
+
+function esc(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function toast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `show ${type || ''}`;
+  setTimeout(() => el.className = '', 2500);
+}
+
+function statusChipClass(status, level) {
+  if (status === 'DURESS' || level === 4) return 'red';
+  if (status === 'ACTIVE') return 'green';
+  if (status === 'DORMANT' || status === 'ENDED') return 'gray';
+  return 'yellow';
+}
+
+async function loadCase() {
+  try {
+    const s = await fetch(`/api/session/${sessionId}`).then(r => { if (!r.ok) throw new Error('Not found'); return r.json(); });
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('content').style.display = 'block';
+
+    document.getElementById('g-status').textContent = s.status;
+    document.getElementById('g-status').className = `chip ${statusChipClass(s.status, s.escalation_level)}`;
+    document.getElementById('g-level').textContent = `Level ${s.escalation_level}`;
+
+    const rows = [
+      ['Person', esc(s.user_name)],
+      ['Destination', esc(s.destination)],
+      ['Last Check-In', s.last_checkin ? new Date(s.last_checkin).toLocaleString() : 'Never'],
+      ['Last Location', esc(s.last_location) || 'Unknown'],
+    ];
+    if (s.route) rows.push(['Route', esc(s.route)]);
+    if (s.communication_method) rows.push(['Communication', esc(s.communication_method)]);
+    if (s.country) rows.push(['Emergency Number', s.emergency_number ? `${esc(s.country)}: ${esc(s.emergency_number)}` : `${esc(s.country)} (not on file)`]);
+
+    try {
+      const history = await fetch(`/api/location/history?session_id=${sessionId}`).then(r => r.json());
+      if (history.length) {
+        const latest = history[history.length - 1];
+        const ago = Math.round((Date.now() - new Date(latest.timestamp).getTime()) / 1000);
+        rows.push(['Live Location', `<a href="https://www.google.com/maps?q=${latest.lat},${latest.lng}" target="_blank" rel="noopener" style="color:var(--accent);">Open on map →</a> (${ago}s ago)`]);
+      }
+    } catch (e) {}
+
+    document.getElementById('g-case-grid').innerHTML = rows.map(([k, v]) =>
+      `<div class="case-row"><div class="case-key">${esc(k)}</div><div class="case-val">${v}</div></div>`).join('');
+  } catch (e) {
+    document.getElementById('loading').innerHTML = '<div class="empty-state">Session not found — this link may be invalid or expired.</div>';
+  }
+}
+
+async function loadMessages() {
+  try {
+    const list = await fetch(`/api/messages?session_id=${sessionId}`).then(r => r.json());
+    const el = document.getElementById('g-msg-list');
+    if (!list.length) { el.innerHTML = '<div class="empty-state">No messages yet.</div>'; return; }
+    el.innerHTML = list.map(m => `
+      <div class="msg from-${esc(m.sender)}">
+        <div class="msg-label">${m.sender === 'user' ? esc(m.sender_label) : `${esc(m.sender_label)} (guardian)`} · ${new Date(m.timestamp).toLocaleTimeString()}</div>
+        <div>${esc(m.text)}</div>
+      </div>`).join('');
+  } catch (e) {}
+}
+
+async function sendReply() {
+  const name = document.getElementById('g-name').value.trim();
+  const text = document.getElementById('g-text').value.trim();
+  if (!name || !text) { toast('Name and message are required', 'err'); return; }
+  const btn = document.getElementById('g-send-btn');
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/message/guardian-reply', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId, guardian_name: name, text }),
+    });
+    if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || 'Send failed'); }
+    document.getElementById('g-text').value = '';
+    toast('Reply sent ✓');
+    loadMessages();
+  } catch (e) { toast(e.message, 'err'); }
+  finally { btn.disabled = false; }
+}
+
+loadCase();
+loadMessages();
+setInterval(loadMessages, 10000);
+</script>
+</body>
+</html>

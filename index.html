@@ -78,6 +78,7 @@ body{max-width:480px;margin:0 auto;padding:0 0 80px;position:relative;}
 /* ── INPUTS ── */
 input,select{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:11px 14px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;transition:border .2s;}
 input:focus,select:focus{border-color:var(--accent);}
+input:disabled,select:disabled,textarea:disabled{opacity:.4;cursor:not-allowed;}
 .field{margin-bottom:12px;}
 .field label{display:block;font-size:11px;color:var(--muted);margin-bottom:6px;font-family:var(--mono);}
 select option{background:var(--card);}
@@ -177,6 +178,9 @@ select option{background:var(--card);}
 .guardian-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface);border-radius:8px;border:1px solid var(--border);}
 .guardian-item.selected{border-color:var(--accent);background:#0d1f18;}
 .g-avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#009966);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#0a0d0f;flex-shrink:0;}
+
+/* ── PROFILE ── */
+.profile-avatar{width:96px;height:96px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#009966);display:flex;align-items:center;justify-content:center;font-size:34px;font-weight:800;color:#0a0d0f;margin:0 auto;cursor:pointer;background-size:cover;background-position:center;border:2px solid var(--border);}
 .g-info{flex:1;min-width:0;}
 .g-name{font-size:13px;font-weight:600;}
 .g-contact{font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:1px;}
@@ -206,7 +210,7 @@ select option{background:var(--card);}
 .sid-box{font-family:var(--mono);font-size:12px;background:var(--surface);border:1px solid var(--accent);border-radius:8px;padding:10px 14px;color:var(--accent);word-break:break-all;text-align:center;margin:8px 0;}
 
 /* ── TOAST ── */
-#toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 20px;font-size:13px;opacity:0;transition:all .3s;pointer-events:none;white-space:nowrap;z-index:999;}
+#toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 20px;font-size:13px;opacity:0;transition:all .3s;pointer-events:none;white-space:nowrap;z-index:1001;}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 #toast.ok{border-color:var(--accent);color:var(--accent);}
 #toast.err{border-color:var(--accent2);color:var(--accent2);}
@@ -220,7 +224,17 @@ select option{background:var(--card);}
 .chip.green{background:#0e1f18;border-color:var(--accent);color:var(--accent);}
 .chip.red{background:#1f0e0e;border-color:var(--accent2);color:var(--accent2);}
 .chip.yellow{background:#1e1a0e;border-color:var(--accent3);color:var(--accent3);}
+.chip.gray{background:#141a1e;border-color:var(--muted);color:var(--muted);}
+.status-badge.sleep{background:#141a1e;color:#7a95a5;border-color:#3a5060;}
+.window-chip{font-size:10px;color:var(--muted);font-family:var(--mono);}
+.window-row{display:flex;align-items:flex-end;gap:8px;margin-bottom:10px;}
+.window-row .field{flex:1;margin-bottom:0;}
+.window-row .g-remove{padding-bottom:11px;}
+.day-picker{display:flex;gap:6px;flex-wrap:wrap;}
+.day-chip{flex:1;min-width:38px;padding:9px 0;text-align:center;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;user-select:none;}
+.day-chip.selected{background:var(--accent);border-color:var(--accent);color:#0a0d0f;}
 .empty-state{text-align:center;color:var(--muted);font-size:13px;padding:40px 20px;line-height:1.8;}
+.mode-hint{font-size:12px;color:var(--muted);line-height:1.6;margin:-4px 0 12px;}
 .btn-test-email{padding:6px 12px;border-radius:6px;border:1px solid var(--accent);background:transparent;color:var(--accent);font-size:11px;font-family:var(--mono);cursor:pointer;white-space:nowrap;}
 .btn-test-email:hover{background:var(--accent);color:#0a0d0f;}
 
@@ -236,6 +250,18 @@ select option{background:var(--card);}
 .ap-title{font-size:22px;font-weight:800;margin-bottom:10px;}
 .ap-body{font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:28px;}
 .ap-btns{display:flex;flex-direction:column;gap:10px;}
+.ap-msg-form{text-align:left;margin-bottom:20px;display:flex;flex-direction:column;gap:8px;}
+.ap-msg-form textarea{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-family:var(--sans);font-size:13px;resize:vertical;outline:none;}
+.ap-msg-form textarea:focus{border-color:var(--accent);}
+.ap-msg-form input{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-family:var(--mono);font-size:13px;outline:none;}
+.ap-msg-form input:focus{border-color:var(--accent);}
+
+/* ── MESSAGES ── */
+.msg-list{display:flex;flex-direction:column;gap:8px;max-height:260px;overflow-y:auto;}
+.msg{padding:10px 12px;border-radius:10px;font-size:13px;line-height:1.5;max-width:85%;}
+.msg.from-user{background:#0e1a14;border:1px solid #1f4a38;align-self:flex-end;margin-left:auto;}
+.msg.from-guardian{background:var(--surface);border:1px solid var(--border);align-self:flex-start;}
+.msg-label{font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:3px;}
 
 /* ── NOTIF PERMISSION BANNER ── */
 #notif-banner{display:none;background:#0e1a14;border:1px solid var(--accent);border-radius:10px;padding:12px 16px;margin:12px 20px 0;gap:10px;align-items:center;}
@@ -257,6 +283,7 @@ select option{background:var(--card);}
       <div class="auth-tab active" id="atab-login" onclick="switchAuthTab('login')">Sign In</div>
       <div class="auth-tab" id="atab-register" onclick="switchAuthTab('register')">Register</div>
     </div>
+    <div id="auth-error" style="display:none;background:#1f0e0e;border:1px solid var(--accent2);color:var(--accent2);border-radius:8px;padding:10px 14px;font-size:12px;margin-bottom:14px;"></div>
     <div id="auth-login">
       <div class="field"><label>Username</label><input id="auth-username" placeholder="your username" autocomplete="username"/></div>
       <div class="field"><label>Password</label><input id="auth-password" type="password" placeholder="your password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"/></div>
@@ -265,6 +292,7 @@ select option{background:var(--card);}
     <div id="auth-register" style="display:none">
       <div class="field"><label>Username</label><input id="reg-username" placeholder="choose a username" autocomplete="username"/></div>
       <div class="field"><label>Password</label><input id="reg-password" type="password" placeholder="choose a password" autocomplete="new-password"/></div>
+      <div class="field"><label>Email <span style="color:var(--muted);font-weight:400;">(optional)</span></label><input id="reg-email" type="email" placeholder="you@example.com" autocomplete="email"/></div>
       <div class="field"><label>Why are you using Guardian Angel?</label><input id="reg-reason" placeholder="e.g. Field journalist, solo traveler…" onkeydown="if(event.key==='Enter')doRegister()"/></div>
       <button class="btn btn-primary" onclick="doRegister()">Create Account</button>
     </div>
@@ -279,6 +307,7 @@ select option{background:var(--card);}
     <div class="hdr-sub" id="hdr-sub">DEAD MAN'S SWITCH v1.0-POC</div>
   </div>
   <div id="globalBadge" class="status-badge offline">OFFLINE</div>
+  <span id="btn-logout" onclick="doLogout()" style="display:none;margin-left:8px;color:var(--muted);font-size:11px;font-family:var(--mono);cursor:pointer;white-space:nowrap;">Log Out</span>
 </div>
 
 <!-- Tabs -->
@@ -286,6 +315,8 @@ select option{background:var(--card);}
   <div class="tab active" onclick="switchTab('home')">Home</div>
   <div class="tab" onclick="switchTab('checkin')">Check-In</div>
   <div class="tab" onclick="switchTab('guardians')">Guardians</div>
+  <div class="tab" onclick="switchTab('profile')">Profile</div>
+  <div class="tab" onclick="switchTab('inbox')">Inbox</div>
   <div class="tab" id="tab-monitor-btn" style="display:none" onclick="switchTab('monitor')">Monitor</div>
   <div class="tab" onclick="switchTab('log')">Log</div>
 </div>
@@ -303,12 +334,23 @@ select option{background:var(--card);}
     </div>
 
     <div class="section-title">Your Journeys</div>
+    <div class="mode-hint">Choose this for a <strong>one-off trip</strong> — going somewhere specific and want guardians alerted if you don't check in until you arrive safely.</div>
     <div id="home-journey-list">
       <div class="empty-state">No journeys yet.<br/>Start your first journey below.</div>
     </div>
 
     <div class="spacer"></div>
     <button class="btn btn-primary" onclick="showView('create')">+ New Journey</button>
+
+    <div class="spacer" style="height:24px;"></div>
+    <div class="section-title">Daily Usage</div>
+    <div class="mode-hint">Choose this for <strong>ongoing, everyday protection</strong> — monitoring runs automatically within a set time window each day (e.g. your commute or evening walk) until you turn it off.</div>
+    <div id="home-daily-list">
+      <div class="empty-state">No daily profiles yet.<br/>Set up an always-on time window below.</div>
+    </div>
+
+    <div class="spacer"></div>
+    <button class="btn btn-ghost" onclick="showView('create-daily')">+ New Daily Usage</button>
   </div>
 
   <!-- CREATE VIEW: journey setup form -->
@@ -319,6 +361,23 @@ select option{background:var(--card);}
       <div class="card-label">Journey Details</div>
       <div class="field"><label>Your Name</label><input id="inp-name" placeholder="e.g. Alex Rivera"/></div>
       <div class="field"><label>Destination</label><input id="inp-dest" placeholder="e.g. Nairobi Field Office"/></div>
+      <div class="field"><label>Destination Country</label><input id="inp-country" list="country-datalist" placeholder="e.g. Kenya" oninput="updateEmergencyNumberHint()"/>
+        <datalist id="country-datalist"></datalist>
+        <div id="emergency-number-hint" style="font-size:11px;color:var(--muted);margin-top:5px;"></div>
+      </div>
+      <div class="field"><label>Google Maps Location (link)</label><input id="inp-maps-link" type="url" placeholder="https://maps.google.com/…"/></div>
+      <div class="row">
+        <div class="field" style="flex:1;"><label>Latitude</label><input id="inp-lat" type="text" inputmode="decimal" placeholder="e.g. -1.2921"/></div>
+        <div class="field" style="flex:1;"><label>Longitude</label><input id="inp-lng" type="text" inputmode="decimal" placeholder="e.g. 36.8219"/></div>
+      </div>
+      <div class="field"><label>Route</label><input id="inp-route" placeholder="e.g. Highway A2 via Thika Road"/></div>
+      <div class="field"><label>Communication Method</label><input id="inp-comm-method" placeholder="e.g. Phone, Satellite Phone, Radio"/></div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Accompanying People <span style="color:var(--muted);font-weight:400;text-transform:none;">(optional)</span></div>
+      <div id="companion-list"></div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:4px;" onclick="addCompanionRow()">+ Add Person</button>
     </div>
 
     <div class="card">
@@ -369,7 +428,7 @@ select option{background:var(--card);}
 
     <div class="card">
       <div class="card-label">Guardians for this Journey</div>
-      <div id="create-guardian-list" class="guardian-list"></div>
+      <div id="create-guardian-list" class="guardian-list guardian-picker-list"></div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Add from your saved list or add a new one:</div>
       <div class="row">
         <input id="inp-gname" placeholder="Name" style="flex:1.2"/>
@@ -378,7 +437,7 @@ select option{background:var(--card);}
       <div class="spacer" style="height:6px;"></div>
       <input id="inp-gemail" placeholder="Email (for alerts)" type="email"/>
       <div class="spacer"></div>
-      <button class="btn btn-ghost" onclick="addAndSaveGuardian()">+ Add Guardian</button>
+      <button class="btn btn-ghost" onclick="addAndSaveGuardian('')">+ Add Guardian</button>
     </div>
 
     <div class="card">
@@ -403,9 +462,109 @@ select option{background:var(--card);}
     <button class="btn btn-primary" onclick="startJourney()">🛡 Begin Journey</button>
   </div>
 
+  <!-- CREATE DAILY VIEW: always-on daily usage setup -->
+  <div id="pnl-create-daily" style="display:none">
+    <div class="nav-back" onclick="showView('home')">← Back to Home</div>
+
+    <div class="card">
+      <div class="card-label">Active Windows — alerts run daily during these times</div>
+      <div id="daily-windows-list"></div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:4px;" onclick="addDailyWindowRow()">+ Add Another Window</button>
+      <div style="font-size:11px;color:var(--muted);margin-top:12px;line-height:1.5;">Outside all of these windows monitoring pauses automatically — but only once you're checked in safe. An unresolved alert keeps escalating until you enter your safe code, even past a window's end.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Active Days</div>
+      <div class="day-picker" id="daily-day-picker"></div>
+      <div style="font-size:11px;color:var(--muted);margin-top:10px;line-height:1.5;">Days not selected are treated like being outside every window — monitoring skips them entirely unless an alert is still unresolved from a previous active day.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Check-in Intervals</div>
+      <div class="interval-grid">
+        <div class="interval-item">
+          <div class="interval-label">Level 0 · Normal</div>
+          <select id="inp-daily-interval-0">
+            <option value="1">1 min (Demo)</option>
+            <option value="5">5 min (Demo)</option>
+            <option value="30" selected>30 min</option>
+            <option value="60">1 hour</option>
+            <option value="120">2 hours</option>
+          </select>
+        </div>
+        <div class="interval-item">
+          <div class="interval-label">L1 → L2 · Overdue</div>
+          <select id="inp-daily-interval-1">
+            <option value="1" selected>1 min</option>
+            <option value="2">2 min</option>
+            <option value="5">5 min</option>
+            <option value="10">10 min</option>
+            <option value="15">15 min</option>
+          </select>
+        </div>
+        <div class="interval-item">
+          <div class="interval-label">L2 → L3 · Warning</div>
+          <select id="inp-daily-interval-2">
+            <option value="1" selected>1 min</option>
+            <option value="2">2 min</option>
+            <option value="5">5 min</option>
+            <option value="10">10 min</option>
+            <option value="15">15 min</option>
+          </select>
+        </div>
+        <div class="interval-item">
+          <div class="interval-label">L3 → L4 · Guardian</div>
+          <select id="inp-daily-interval-3">
+            <option value="1" selected>1 min</option>
+            <option value="2">2 min</option>
+            <option value="5">5 min</option>
+            <option value="10">10 min</option>
+            <option value="15">15 min</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Guardians for this Profile</div>
+      <div id="create-guardian-list-daily" class="guardian-list guardian-picker-list"></div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Add from your saved list or add a new one:</div>
+      <div class="row">
+        <input id="inp-gname-daily" placeholder="Name" style="flex:1.2"/>
+        <input id="inp-gphone-daily" placeholder="Phone" style="flex:1"/>
+      </div>
+      <div class="spacer" style="height:6px;"></div>
+      <input id="inp-gemail-daily" placeholder="Email (for alerts)" type="email"/>
+      <div class="spacer"></div>
+      <button class="btn btn-ghost" onclick="addAndSaveGuardian('-daily')">+ Add Guardian</button>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Your Codes</div>
+      <div class="code-grid">
+        <div class="code-card safe">
+          <div class="code-val code-safe" id="disp-daily-safe">SAFE123</div>
+          <div class="code-desc">Safe Code — Resets timer</div>
+        </div>
+        <div class="code-card duress">
+          <div class="code-val code-duress" id="disp-daily-duress">HELP999</div>
+          <div class="code-desc">Duress Code — Silent L4 alert</div>
+        </div>
+      </div>
+      <div class="spacer"></div>
+      <div class="row">
+        <input id="inp-daily-safe" placeholder="Custom safe code" style="flex:1" oninput="document.getElementById('disp-daily-safe').textContent=this.value||'SAFE123'"/>
+        <input id="inp-daily-duress" placeholder="Custom duress code" style="flex:1" oninput="document.getElementById('disp-daily-duress').textContent=this.value||'HELP999'"/>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" onclick="startDailyUsage()">🛡 Turn On Daily Usage</button>
+  </div>
+
   <!-- ACTIVE VIEW: running journey -->
   <div id="pnl-active" style="display:none">
-    <div class="section-title">Active Journey</div>
+    <div class="nav-back" onclick="showView('home')">← Back to Home</div>
+    <div class="section-title" id="active-section-title">Active Journey</div>
     <div class="card">
       <div class="card-label">Session ID</div>
       <div class="sid-box" id="disp-sid">—</div>
@@ -413,11 +572,29 @@ select option{background:var(--card);}
         <span class="chip green" id="disp-user-chip">—</span>
         <span class="chip" id="disp-dest-chip">—</span>
         <span id="disp-status-chip" class="chip green">ACTIVE</span>
+        <span class="window-chip" id="disp-window-chip" style="display:none;"></span>
+      </div>
+    </div>
+
+    <div class="card" id="trip-details-card" style="display:none">
+      <div class="card-label">Trip Details</div>
+      <div class="case-grid" id="trip-details-grid"></div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="justify-content:space-between;">
+        <div class="card-label" style="margin-bottom:0;">📍 Live Location</div>
+        <div class="g-check" id="location-toggle" onclick="toggleLocationTracking()"></div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5;">Off by default. When on, shares your GPS position with guardians more often the higher the alert level gets — only while this page stays open.</div>
+      <div id="location-status" style="display:none;margin-top:10px;font-size:12px;">
+        <span id="location-status-text" style="color:var(--muted);"></span>
+        <a id="location-map-link" href="#" target="_blank" rel="noopener" style="color:var(--accent);margin-left:6px;">View on map →</a>
       </div>
     </div>
 
     <div class="card" style="padding:0 16px 16px;">
-      <div class="card-label" style="padding-top:16px;">Next Check-In Countdown</div>
+      <div class="card-label" style="padding-top:16px;" id="timer-card-label">Next Check-In Countdown</div>
       <div class="timer-wrap">
         <div class="timer-outer">
           <svg class="timer-svg" viewBox="0 0 160 160">
@@ -452,10 +629,21 @@ select option{background:var(--card);}
       </div>
     </div>
 
-    <div class="btn-row">
-      <button class="btn btn-ghost" onclick="switchTab('checkin')">Check In Now</button>
-      <button class="btn btn-danger" onclick="endJourney()">End Journey</button>
+    <div class="card">
+      <div class="card-label">Messages</div>
+      <div class="msg-list" id="active-msg-list"><div class="empty-state">No messages yet.</div></div>
+      <div class="field" style="margin-top:10px;"><textarea id="active-msg-text" rows="2" placeholder="Message your guardians…" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-family:var(--sans);font-size:13px;resize:vertical;"></textarea></div>
+      <div class="row" style="gap:8px;">
+        <input id="active-msg-code" placeholder="Your code" style="flex:1;font-family:var(--mono);letter-spacing:2px;"/>
+        <button class="btn btn-primary btn-sm" id="active-msg-send-btn" style="flex-shrink:0;" onclick="sendMessageFromActiveView()">Send</button>
+      </div>
     </div>
+
+    <div class="btn-row" id="active-btn-row">
+      <button class="btn btn-ghost" onclick="switchTab('checkin')">Check In Now</button>
+      <button class="btn btn-danger" id="btn-end-session" onclick="endJourney()">End Journey</button>
+    </div>
+    <div class="empty-state" id="active-ended-msg" style="display:none;padding:16px;">✅ This session has ended. It's kept here for your records only — no further check-ins or actions are possible.</div>
   </div>
 </div>
 
@@ -496,7 +684,82 @@ select option{background:var(--card);}
     <div class="field"><label>Name</label><input id="sg-name" placeholder="Full name"/></div>
     <div class="field"><label>Email (for alerts)</label><input id="sg-email" type="email" placeholder="guardian@email.com"/></div>
     <div class="field"><label>Phone</label><input id="sg-phone" placeholder="+1 555 000 0000"/></div>
+    <div class="field"><label>App Username <span style="color:var(--muted);font-weight:400;">(if they also use Guardian Angel)</span></label><input id="sg-linked-username" placeholder="their-username"/>
+      <div style="font-size:11px;color:var(--muted);margin-top:5px;">They'll need to accept before your journeys show up in their Guardian Inbox.</div>
+    </div>
     <button class="btn btn-ghost" onclick="saveNewGuardian()">+ Save Guardian</button>
+  </div>
+</div>
+
+<!-- ══ PROFILE TAB ══ -->
+<div id="tab-profile" class="panel">
+  <div class="section-title">Your Profile</div>
+
+  <div class="card" style="text-align:center;">
+    <input type="file" id="profile-photo-input" accept="image/*" style="display:none" onchange="handleProfilePhotoSelected(event)"/>
+    <div class="profile-avatar" id="profile-avatar" onclick="document.getElementById('profile-photo-input').click()">?</div>
+    <div style="font-size:11px;color:var(--muted);margin-top:8px;">Tap to change photo</div>
+    <div style="font-size:15px;font-weight:700;margin-top:10px;" id="profile-username-display">—</div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Contact Details</div>
+    <div class="field"><label>Email</label><input id="pf-email" type="email" placeholder="you@example.com"/></div>
+    <div class="field"><label>Phone</label><input id="pf-phone" placeholder="+1 555 000 0000"/></div>
+    <div class="field"><label>Address</label><input id="pf-address" placeholder="Street, City, Country"/></div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Personal Details</div>
+    <div class="field"><label>Date of Birth</label><input id="pf-dob" type="date"/></div>
+    <div class="field"><label>Blood Type</label>
+      <select id="pf-blood-type">
+        <option value="">Unknown</option>
+        <option>O+</option><option>O-</option><option>A+</option><option>A-</option>
+        <option>B+</option><option>B-</option><option>AB+</option><option>AB-</option>
+      </select>
+    </div>
+    <div class="field"><label>Medical Notes <span style="color:var(--muted);font-weight:400;">(allergies, conditions — shared in your case file)</span></label>
+      <textarea id="pf-medical-notes" rows="3" placeholder="e.g. Penicillin allergy, Type 1 diabetic" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:11px 14px;color:var(--text);font-family:var(--sans);font-size:14px;resize:vertical;"></textarea>
+    </div>
+  </div>
+
+  <button class="btn btn-primary" onclick="saveProfile()">💾 Save Profile</button>
+</div>
+
+<!-- ══ INBOX TAB (sessions where I'm a linked guardian) ══ -->
+<div id="tab-inbox" class="panel">
+
+  <div id="pnl-inbox-list">
+    <div id="inbox-requests-section" style="display:none;">
+      <div class="section-title">Pending Requests</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6;">These people have added you as a guardian. Accept to see their journeys here; decline if you don't recognize them.</div>
+      <div id="inbox-requests-list"></div>
+      <div class="spacer"></div>
+    </div>
+
+    <div class="section-title">Guardian Inbox</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6;">Journeys where someone has added you as a guardian using your app username. Tap one to see details and chat.</div>
+    <div id="inbox-list"><div class="empty-state">No one has added you as a guardian yet.<br/>Ask them to enter your username when saving you as a guardian.</div></div>
+  </div>
+
+  <div id="pnl-inbox-chat" style="display:none">
+    <div class="nav-back" onclick="showInboxView('list')">← Back to Inbox</div>
+    <div class="card">
+      <div class="card-label">Status</div>
+      <div class="row" style="gap:6px;flex-wrap:wrap;">
+        <span class="chip" id="inbox-chat-user">—</span>
+        <span class="chip" id="inbox-chat-status">—</span>
+        <span class="chip" id="inbox-chat-level">—</span>
+      </div>
+      <div id="inbox-case-grid" style="margin-top:10px;"></div>
+    </div>
+    <div class="card">
+      <div class="card-label">Messages</div>
+      <div class="msg-list" id="inbox-msg-list"><div class="empty-state">No messages yet.</div></div>
+      <div class="field" style="margin-top:10px;"><textarea id="inbox-msg-text" rows="2" placeholder="Reply…" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-family:var(--sans);font-size:13px;resize:vertical;"></textarea></div>
+      <button class="btn btn-primary btn-sm" onclick="sendInboxReply()">Send Reply</button>
+    </div>
   </div>
 </div>
 
@@ -515,6 +778,18 @@ select option{background:var(--card);}
     <div class="card-label" style="color:var(--accent2);">🔴 Digital Case File — Authority Copy</div>
     <div class="case-grid" id="case-grid"></div>
   </div>
+
+  <div class="spacer"></div>
+  <div class="section-title">Emergency Numbers</div>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Admin-editable — changes take effect immediately, no redeploy needed.</div>
+  <div class="card">
+    <div class="row">
+      <input id="en-country" placeholder="Country" style="flex:1;"/>
+      <input id="en-number" placeholder="Number" style="flex:1;"/>
+      <button class="btn btn-warn btn-sm" style="flex-shrink:0;" onclick="upsertEmergencyNumber()">Save</button>
+    </div>
+  </div>
+  <div id="emergency-numbers-list"></div>
 </div>
 
 <!-- ══ LOG TAB ══ -->
@@ -541,8 +816,15 @@ select option{background:var(--card);}
     <div class="ap-level-tag" id="ap-level-tag" style="color:#ff8c42;border-color:#ff8c42;">LEVEL 3 — ALERT</div>
     <div class="ap-title" id="ap-title">Guardian Alert</div>
     <div class="ap-body" id="ap-body">Your guardians have been notified.</div>
+
+    <div class="ap-msg-form">
+      <textarea id="ap-msg-text" rows="2" placeholder="Send a short message to your guardians…"></textarea>
+      <input id="ap-msg-code" placeholder="Your code" style="font-family:var(--mono);letter-spacing:2px;" onkeydown="if(event.key==='Enter')sendMessageFromPopup()"/>
+      <button class="btn btn-primary" onclick="sendMessageFromPopup()">💬 Send &amp; Check In Safe</button>
+    </div>
+
     <div class="ap-btns">
-      <button class="btn btn-primary" onclick="closeAlertPopup();switchTab('checkin')">Check In Now →</button>
+      <button class="btn btn-ghost" onclick="closeAlertPopup();switchTab('checkin')">Check In Now →</button>
       <button class="btn btn-ghost" onclick="closeAlertPopup()">Dismiss</button>
     </div>
   </div>
@@ -553,6 +835,16 @@ select option{background:var(--card);}
 
 <script>
 const API = '';
+
+// Escape untrusted text before interpolating into an innerHTML-bound template —
+// destination, messages, guardian/companion names, etc. are all user-controlled.
+function esc(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 let currentSession   = null;
 let savedGuardians   = [];   // loaded from API — user's persistent guardian list
 let journeyGuardians = [];   // selected/added for current journey creation
@@ -560,6 +852,7 @@ let timerInterval    = null;
 let pollInterval     = null;
 let currentUser      = null;
 let lastLevel        = 0;
+let lastMessageCount = 0;
 let swRegistration   = null;  // ServiceWorker registration
 
 // ── SERVICE WORKER + PUSH ─────────────────────
@@ -604,7 +897,6 @@ async function subscribePush() {
     }
     const j = sub.toJSON();
     await api('/api/push/subscribe', 'POST', {
-      user_id: currentUser.id,
       endpoint: j.endpoint,
       p256dh: j.keys.p256dh,
       auth: j.keys.auth,
@@ -642,10 +934,26 @@ function showAlertPopup(data) {
 
   vibrateDevice(level);
   playSound(level);
+  startNagLoop(level);
 }
 
 function closeAlertPopup() {
   document.getElementById('alert-popup').classList.remove('visible');
+  stopNagLoop();
+}
+
+// ── NAG LOOP — keep buzzing/beeping for high-severity alerts until acknowledged ──
+let nagInterval = null;
+function startNagLoop(level) {
+  stopNagLoop();
+  if (level < 3) return;
+  nagInterval = setInterval(() => {
+    vibrateDevice(level);
+    playSound(level);
+  }, 18000);
+}
+function stopNagLoop() {
+  if (nagInterval) { clearInterval(nagInterval); nagInterval = null; }
 }
 
 // ── AUDIO ─────────────────────────────────
@@ -715,7 +1023,7 @@ function toast(msg, type = 'ok') {
   setTimeout(() => el.className = '', 2500);
 }
 async function api(path, method = 'GET', body = null) {
-  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  const opts = { method, headers: { 'Content-Type': 'application/json' }, credentials: 'include' };
   if (body) opts.body = JSON.stringify(body);
   const r = await fetch(API + path, opts);
   if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || r.statusText); }
@@ -725,53 +1033,232 @@ async function api(path, method = 'GET', body = null) {
 // ── TABS & VIEWS ──────────────────────────
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach((t, i) => {
-    t.classList.toggle('active', ['home','checkin','guardians','monitor','log'][i] === name);
+    t.classList.toggle('active', ['home','checkin','guardians','profile','inbox','monitor','log'][i] === name);
   });
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   if (name === 'home')      { loadHomeJourneys(); if (currentSession) showView('active'); }
   if (name === 'guardians') loadSavedGuardians();
+  if (name === 'profile')   loadProfile();
+  if (name === 'inbox')     showInboxView('list');
   if (name === 'log')       loadLog();
-  if (name === 'monitor')   loadSessions();
+  if (name === 'monitor')   { loadSessions(); loadEmergencyNumbers(); }
 }
 
 function showView(view) {
-  document.getElementById('pnl-home').style.display   = view === 'home'   ? 'block' : 'none';
-  document.getElementById('pnl-create').style.display = view === 'create' ? 'block' : 'none';
-  document.getElementById('pnl-active').style.display = view === 'active' ? 'block' : 'none';
-  if (view === 'create') renderCreateGuardians();
-  if (view === 'home')   loadHomeJourneys();
+  document.getElementById('pnl-home').style.display         = view === 'home'         ? 'block' : 'none';
+  document.getElementById('pnl-create').style.display       = view === 'create'       ? 'block' : 'none';
+  document.getElementById('pnl-create-daily').style.display = view === 'create-daily' ? 'block' : 'none';
+  document.getElementById('pnl-active').style.display       = view === 'active'       ? 'block' : 'none';
+  if (view === 'create' || view === 'create-daily') renderCreateGuardians();
+  if (view === 'create') { resetCompanionsForm(); populateCountryDatalist(); }
+  if (view === 'create-daily') { resetDailyWindowsForm(); resetDayPicker(); }
+  if (view === 'home') loadHomeJourneys();
+}
+
+// ── TRIP — TRAVELING COMPANIONS ───────────
+let companionSeq = 0;
+function companionRowHtml(id, name, contact) {
+  return `
+    <div class="window-row" data-cid="${id}">
+      <div class="field"><label>Name</label><input id="comp-name-${id}" placeholder="Name" value="${name || ''}"/></div>
+      <div class="field"><label>Contact</label><input id="comp-contact-${id}" placeholder="Phone or email" value="${contact || ''}"/></div>
+      <span class="g-remove" onclick="removeCompanionRow(${id})">✕</span>
+    </div>`;
+}
+function addCompanionRow(name, contact) {
+  const id = companionSeq++;
+  document.getElementById('companion-list').insertAdjacentHTML('beforeend', companionRowHtml(id, name, contact));
+}
+function removeCompanionRow(id) {
+  const row = document.querySelector(`#companion-list [data-cid="${id}"]`);
+  if (row) row.remove();
+}
+function resetCompanionsForm() {
+  document.getElementById('companion-list').innerHTML = '';
+  companionSeq = 0;
+}
+function collectCompanions() {
+  return Array.from(document.querySelectorAll('#companion-list .window-row'))
+    .map(row => {
+      const id = row.dataset.cid;
+      return {
+        name: document.getElementById(`comp-name-${id}`).value.trim(),
+        contact: document.getElementById(`comp-contact-${id}`).value.trim(),
+      };
+    })
+    .filter(c => c.name);
+}
+
+// ── DESTINATION COUNTRY — EMERGENCY NUMBER HINT ─
+// Mirrors the server-side table in main.py (EMERGENCY_NUMBERS) just for live
+// UI feedback while typing; the server's lookup is always the source of truth.
+const EMERGENCY_NUMBERS = {
+  "united states": "911", "usa": "911", "canada": "911", "mexico": "911",
+  "united kingdom": "999", "uk": "999", "ireland": "999",
+  "australia": "000", "new zealand": "111",
+  "india": "112", "pakistan": "15", "bangladesh": "999", "sri lanka": "119",
+  "china": "110", "japan": "110", "south korea": "112", "taiwan": "110",
+  "singapore": "999", "malaysia": "999", "indonesia": "112", "philippines": "911",
+  "thailand": "191", "vietnam": "113", "hong kong": "999",
+  "germany": "112", "france": "112", "spain": "112", "italy": "112",
+  "portugal": "112", "netherlands": "112", "belgium": "112", "switzerland": "112",
+  "austria": "112", "sweden": "112", "norway": "112", "denmark": "112",
+  "finland": "112", "poland": "112", "greece": "112", "turkey": "112",
+  "russia": "112", "ukraine": "112", "romania": "112", "czech republic": "112",
+  "hungary": "112", "iceland": "112", "croatia": "112",
+  "brazil": "190", "argentina": "911", "chile": "133", "colombia": "123",
+  "peru": "105", "venezuela": "911", "ecuador": "911", "uruguay": "911",
+  "south africa": "10111", "nigeria": "112", "kenya": "999", "egypt": "122",
+  "morocco": "19", "ghana": "112", "ethiopia": "991", "tanzania": "112",
+  "uganda": "999", "algeria": "17",
+  "israel": "100", "saudi arabia": "911", "uae": "999",
+  "united arab emirates": "999", "qatar": "999", "jordan": "911", "lebanon": "112",
+};
+
+function populateCountryDatalist() {
+  const dl = document.getElementById('country-datalist');
+  if (!dl || dl.children.length) return;
+  const names = Object.keys(EMERGENCY_NUMBERS).map(k => k.replace(/\b\w/g, c => c.toUpperCase()));
+  dl.innerHTML = names.map(n => `<option value="${n}"></option>`).join('');
+}
+
+function updateEmergencyNumberHint() {
+  const country = document.getElementById('inp-country').value.trim();
+  const hint = document.getElementById('emergency-number-hint');
+  if (!country) { hint.textContent = ''; return; }
+  const number = EMERGENCY_NUMBERS[country.toLowerCase()];
+  hint.textContent = number
+    ? `Local emergency number: ${number} (shared with guardians if they need to call)`
+    : 'Not in our emergency-number list — guardians will be told to look it up locally.';
+}
+
+// ── DAILY USAGE — MULTIPLE ACTIVE WINDOWS ─
+let dailyWindowSeq = 0;
+function dailyWindowRowHtml(id, start, end) {
+  return `
+    <div class="window-row" data-wid="${id}">
+      <div class="field"><label>Starts</label><input id="dwin-start-${id}" type="time" value="${start}"/></div>
+      <div class="field"><label>Ends</label><input id="dwin-end-${id}" type="time" value="${end}"/></div>
+      <span class="g-remove" onclick="removeDailyWindowRow(${id})">✕</span>
+    </div>`;
+}
+function addDailyWindowRow(start, end) {
+  const id = dailyWindowSeq++;
+  document.getElementById('daily-windows-list').insertAdjacentHTML('beforeend', dailyWindowRowHtml(id, start || '08:00', end || '20:00'));
+}
+function removeDailyWindowRow(id) {
+  const list = document.getElementById('daily-windows-list');
+  if (list.children.length <= 1) { toast('At least one active window is required', 'err'); return; }
+  const row = list.querySelector(`[data-wid="${id}"]`);
+  if (row) row.remove();
+}
+function resetDailyWindowsForm() {
+  document.getElementById('daily-windows-list').innerHTML = '';
+  dailyWindowSeq = 0;
+  addDailyWindowRow('08:00', '20:00');
+}
+function collectDailyWindows() {
+  return Array.from(document.querySelectorAll('#daily-windows-list .window-row')).map(row => {
+    const id = row.dataset.wid;
+    const startLocal = document.getElementById(`dwin-start-${id}`).value;
+    const endLocal    = document.getElementById(`dwin-end-${id}`).value;
+    return {
+      start_min: localTimeToUtcMinutes(startLocal), end_min: localTimeToUtcMinutes(endLocal),
+      start_local: startLocal, end_local: endLocal,
+    };
+  });
+}
+function formatWindows(windows) {
+  return (windows || []).map(w => `${w.start_local}–${w.end_local}`).join(', ');
+}
+
+// ── DAILY USAGE — ACTIVE DAYS ──────────────
+const DAY_LABELS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']; // index matches Python's datetime.weekday()
+let selectedDailyDays = new Set([0,1,2,3,4,5,6]);
+
+function renderDayPicker() {
+  const el = document.getElementById('daily-day-picker');
+  el.innerHTML = DAY_LABELS.map((label, i) =>
+    `<div class="day-chip ${selectedDailyDays.has(i) ? 'selected' : ''}" onclick="toggleDailyDay(${i})">${label}</div>`
+  ).join('');
+}
+function toggleDailyDay(i) {
+  if (selectedDailyDays.has(i)) {
+    if (selectedDailyDays.size <= 1) { toast('At least one active day is required', 'err'); return; }
+    selectedDailyDays.delete(i);
+  } else {
+    selectedDailyDays.add(i);
+  }
+  renderDayPicker();
+}
+function resetDayPicker() {
+  selectedDailyDays = new Set([0,1,2,3,4,5,6]);
+  renderDayPicker();
+}
+function collectActiveDays() {
+  return Array.from(selectedDailyDays).sort((a, b) => a - b);
+}
+function formatActiveDays(days) {
+  if (!days || !days.length || days.length === 7) return 'Every day';
+  return days.slice().sort((a, b) => a - b).map(i => DAY_LABELS[i]).join(', ');
 }
 
 // ── AUTH ──────────────────────────────────
+function showAuthError(msg) {
+  const el = document.getElementById('auth-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function clearAuthError() {
+  const el = document.getElementById('auth-error');
+  el.style.display = 'none';
+  el.textContent = '';
+}
 function switchAuthTab(tab) {
   document.getElementById('atab-login').classList.toggle('active', tab === 'login');
   document.getElementById('atab-register').classList.toggle('active', tab === 'register');
   document.getElementById('auth-login').style.display    = tab === 'login'    ? '' : 'none';
   document.getElementById('auth-register').style.display = tab === 'register' ? '' : 'none';
+  clearAuthError();
 }
 async function doLogin() {
+  clearAuthError();
   const username = document.getElementById('auth-username').value.trim();
   const password = document.getElementById('auth-password').value;
-  if (!username || !password) { toast('Username and password required', 'err'); return; }
+  if (!username || !password) { showAuthError('Username and password required'); return; }
   try {
     const user = await api('/api/login', 'POST', { username, password });
     setUser(user);
     toast(`Welcome back, ${user.username}!`);
-  } catch(e) { toast(e.message, 'err'); }
+  } catch(e) { showAuthError(e.message || 'Invalid username or password'); }
 }
 async function doRegister() {
+  clearAuthError();
   const username = document.getElementById('reg-username').value.trim();
   const password = document.getElementById('reg-password').value;
+  const email    = document.getElementById('reg-email').value.trim();
   const reason   = document.getElementById('reg-reason').value.trim();
-  if (!username || !password) { toast('Username and password required', 'err'); return; }
+  if (!username || !password) { showAuthError('Username and password required'); return; }
   try {
-    const user = await api('/api/register', 'POST', { username, password, reason });
+    const user = await api('/api/register', 'POST', { username, password, email, reason });
     setUser(user);
     toast(`Account created. Welcome, ${user.username}!`);
-  } catch(e) { toast(e.message, 'err'); }
+  } catch(e) { showAuthError(e.message || 'Could not create account'); }
 }
-const ADMIN_USER = 'AAH_Test_02';
+
+async function doLogout() {
+  try { await api('/api/logout', 'POST'); } catch(e) {}
+  currentUser = null;
+  currentSession = null;
+  sessionStorage.removeItem('ga_user');
+  stopPolling();
+  document.getElementById('btn-logout').style.display = 'none';
+  document.getElementById('auth-overlay').style.display = 'flex';
+  toast('Signed out');
+}
+
+const ADMIN_USERS = ['AAH_Test_02', 'test_aah'];
 
 function setUser(user) {
   currentUser = user;
@@ -780,7 +1267,8 @@ function setUser(user) {
   document.getElementById('inp-name').value = user.username;
   document.getElementById('hdr-sub').textContent = `SIGNED IN AS ${user.username.toUpperCase()}`;
   document.getElementById('tab-monitor-btn').style.display =
-    user.username === ADMIN_USER ? '' : 'none';
+    ADMIN_USERS.includes(user.username) ? '' : 'none';
+  document.getElementById('btn-logout').style.display = 'inline';
   loadHomeJourneys();
   loadSavedGuardians();
 
@@ -796,52 +1284,108 @@ function setUser(user) {
 }
 
 // ── HOME PAGE ─────────────────────────────
+function statusChipClass(s) {
+  if (s.status === 'DORMANT') return 'gray';
+  if (s.status === 'ACTIVE')  return 'green';
+  if (s.status === 'DURESS' || s.level === 4) return 'red';
+  if (s.status === 'ENDED')   return '';
+  return 'yellow';
+}
+
 async function loadHomeJourneys() {
   if (!currentUser) return;
   try {
-    const list = await api(`/api/sessions?user_id=${currentUser.id}`);
-    const el   = document.getElementById('home-journey-list');
+    const list   = await api('/api/sessions');
+    const trips  = list.filter(s => s.session_type !== 'DAILY');
+    const dailies = list.filter(s => s.session_type === 'DAILY');
+    const el     = document.getElementById('home-journey-list');
+    const dailyEl = document.getElementById('home-daily-list');
     const banner = document.getElementById('home-active-banner');
 
-    if (!list.length) {
-      el.innerHTML = '<div class="empty-state">No journeys yet.<br/>Start your first journey below.</div>';
-      banner.style.display = 'none';
-      return;
-    }
-
-    // Show active banner if there's a running session
-    const active = list.find(s => s.status === 'ACTIVE' || s.status === 'DURESS');
+    // Show active banner if there's a running trip session
+    const active = trips.find(s => s.status === 'ACTIVE' || s.status === 'DURESS');
     if (active && currentSession) {
       banner.style.display = 'block';
       document.getElementById('home-active-info').innerHTML =
-        `<strong>${active.destination}</strong> <span class="chip ${active.status==='DURESS'?'red':'green'}" style="margin-left:6px;">${active.status}</span>`;
+        `<strong>${esc(active.destination)}</strong> <span class="chip ${active.status==='DURESS'?'red':'green'}" style="margin-left:6px;">${esc(active.status)}</span>`;
     } else {
       banner.style.display = 'none';
     }
 
-    el.innerHTML = list.map(s => {
-      const statusCls = s.status === 'ACTIVE' ? 'green' : s.status === 'DURESS' || s.level === 4 ? 'red' : s.status === 'ENDED' ? '' : 'yellow';
-      const date = s.started_at ? new Date(s.started_at).toLocaleDateString(undefined, {month:'short',day:'numeric',year:'numeric'}) : '';
-      return `
-        <div class="journey-card ${s.status==='ACTIVE'||s.status==='DURESS'?'active-card':''}"
-             onclick="document.getElementById('cf-sid').value='${s.session_id}';document.getElementById('log-filter').value='${s.session_id}';">
-          <div class="jc-row">
-            <div class="jc-dest">→ ${s.destination}</div>
-            <span class="chip ${statusCls}">${s.status}</span>
-            <span class="chip">L${s.level}</span>
-          </div>
-          <div class="jc-meta">${s.session_id}</div>
-          <div class="jc-date">${date}</div>
-        </div>`;
-    }).join('');
+    if (!trips.length) {
+      el.innerHTML = '<div class="empty-state">No journeys yet.<br/>Start your first journey below.</div>';
+    } else {
+      el.innerHTML = trips.map(s => {
+        const date = s.started_at ? new Date(s.started_at).toLocaleDateString(undefined, {month:'short',day:'numeric',year:'numeric'}) : '';
+        return `
+          <div class="journey-card ${s.status==='ACTIVE'||s.status==='DURESS'?'active-card':''}" onclick="openSession('${esc(s.session_id)}')">
+            <div class="jc-row">
+              <div class="jc-dest">→ ${esc(s.destination)}</div>
+              <span class="chip ${statusChipClass(s)}">${esc(s.status)}</span>
+              <span class="chip">L${s.level}</span>
+            </div>
+            <div class="jc-meta">${esc(s.session_id)}</div>
+            <div class="jc-date">${date}</div>
+          </div>`;
+      }).join('');
+    }
+
+    if (!dailies.length) {
+      dailyEl.innerHTML = '<div class="empty-state">No daily profiles yet.<br/>Set up an always-on time window below.</div>';
+    } else {
+      dailyEl.innerHTML = dailies.map(s => {
+        const window = formatWindows(s.windows);
+        const days   = formatActiveDays(s.active_days);
+        return `
+          <div class="journey-card ${s.status==='ACTIVE'||s.status==='DURESS'?'active-card':''}" onclick="openSession('${esc(s.session_id)}')">
+            <div class="jc-row">
+              <div class="jc-dest">→ ${esc(s.destination)}</div>
+              <span class="chip ${statusChipClass(s)}">${s.status === 'DORMANT' ? '😴 SLEEPING' : esc(s.status)}</span>
+              <span class="chip">L${s.level}</span>
+            </div>
+            <div class="jc-meta">${esc(s.session_id)}</div>
+            <div class="jc-date">${esc(window)} · ${esc(days)}</div>
+          </div>`;
+      }).join('');
+    }
   } catch(e) {}
+}
+
+// ── OPEN AN EXISTING SESSION (Trip or Daily) ──
+async function openSession(sessionId) {
+  try {
+    const s = await api(`/api/session/${sessionId}`);
+    currentSession = {
+      id: s.session_id, name: s.user_name, dest: s.destination,
+      interval: s.interval_minutes, safeCode: s.safe_code, duressCode: s.duress_code,
+      nextCheckin: s.next_checkin, type: s.session_type || 'TRIP', status: s.status,
+      windows: s.windows || [], activeDays: s.active_days || [],
+      mapsLink: s.maps_link || '', latitude: s.latitude || '', longitude: s.longitude || '',
+      route: s.route || '', commMethod: s.communication_method || '', companions: s.companions || [],
+      country: s.country || '', emergencyNumber: s.emergency_number || '',
+    };
+    lastLevel = s.escalation_level;
+    lastMessageCount = 0;
+    document.getElementById('ci-sid').value     = s.session_id;
+    document.getElementById('cf-sid').value     = s.session_id;
+    document.getElementById('log-filter').value = s.session_id;
+
+    showView('active');
+    showActivePanel();
+    updateAlertIndicator(s.escalation_level, false);
+    updateEscalationUI(s.escalation_level, s.status);
+    updateStatusBadge(s.status, s.escalation_level);
+    loadMessages(); // refresh immediately — don't wait for the next poll tick, or the previous session's thread lingers on screen
+    if (s.status === 'ENDED') { stopPolling(); updateTimer(); }
+    else startPolling();
+  } catch(e) { toast(e.message, 'err'); }
 }
 
 // ── SAVED GUARDIANS ───────────────────────
 async function loadSavedGuardians() {
   if (!currentUser) return;
   try {
-    savedGuardians = await api(`/api/guardians?user_id=${currentUser.id}`);
+    savedGuardians = await api('/api/guardians');
     renderSavedGuardianList();
     renderCreateGuardians();
   } catch(e) {}
@@ -853,16 +1397,24 @@ function renderSavedGuardianList() {
     el.innerHTML = '<div class="empty-state">No guardians saved yet.<br/>Add guardians below to reuse them across journeys.</div>';
     return;
   }
-  el.innerHTML = savedGuardians.map(g => `
+  el.innerHTML = savedGuardians.map(g => {
+    let linkBadge = '';
+    if (g.linked_user_id) {
+      const badges = { accepted: ['green', '🔗 App User'], pending: ['gray', '⏳ Pending'], declined: ['red', '❌ Declined'] };
+      const [cls, label] = badges[g.status] || badges.accepted;
+      linkBadge = `<span class="chip ${cls}" style="margin-left:4px;">${label}</span>`;
+    }
+    return `
     <div class="guardian-item">
-      <div class="g-avatar">${g.name[0].toUpperCase()}</div>
+      <div class="g-avatar">${esc(g.name[0].toUpperCase())}</div>
       <div class="g-info">
-        <div class="g-name">${g.name}</div>
-        <div class="g-contact">${[g.email, g.phone].filter(Boolean).join(' · ') || '—'}</div>
+        <div class="g-name">${esc(g.name)} ${linkBadge}</div>
+        <div class="g-contact">${esc([g.email, g.phone].filter(Boolean).join(' · ')) || '—'}</div>
       </div>
-      ${g.email ? `<button class="btn-test-email" onclick="sendTestEmail('${g.email}')">Test</button>` : ''}
-      <span class="g-remove" onclick="deleteSavedGuardian('${g.id}')">✕</span>
-    </div>`).join('');
+      ${g.email ? `<button class="btn-test-email" onclick="sendTestEmail('${esc(g.email)}')">Test</button>` : ''}
+      <span class="g-remove" onclick="deleteSavedGuardian('${esc(g.id)}')">✕</span>
+    </div>`;
+  }).join('');
 }
 
 async function saveNewGuardian() {
@@ -870,13 +1422,15 @@ async function saveNewGuardian() {
   const name  = document.getElementById('sg-name').value.trim();
   const email = document.getElementById('sg-email').value.trim();
   const phone = document.getElementById('sg-phone').value.trim();
+  const linked_username = document.getElementById('sg-linked-username').value.trim();
   if (!name) { toast('Name is required', 'err'); return; }
   try {
-    const g = await api('/api/guardians', 'POST', { user_id: currentUser.id, name, email, phone });
+    const g = await api('/api/guardians', 'POST', { name, email, phone, linked_username });
     savedGuardians.push(g);
     document.getElementById('sg-name').value  = '';
     document.getElementById('sg-email').value = '';
     document.getElementById('sg-phone').value = '';
+    document.getElementById('sg-linked-username').value = '';
     renderSavedGuardianList();
     toast(`${g.name} added to your guardian list`);
   } catch(e) { toast(e.message, 'err'); }
@@ -892,40 +1446,224 @@ async function deleteSavedGuardian(id) {
   } catch(e) { toast(e.message, 'err'); }
 }
 
+// ── PROFILE ────────────────────────────────
+let profilePhotoDataUrl = '';
+
+function renderProfileAvatar() {
+  const el = document.getElementById('profile-avatar');
+  if (profilePhotoDataUrl) {
+    el.style.backgroundImage = `url(${profilePhotoDataUrl})`;
+    el.textContent = '';
+  } else {
+    el.style.backgroundImage = '';
+    el.textContent = currentUser ? currentUser.username[0].toUpperCase() : '?';
+  }
+}
+
+async function loadProfile() {
+  if (!currentUser) return;
+  try {
+    const p = await api('/api/profile');
+    document.getElementById('profile-username-display').textContent = p.username;
+    document.getElementById('pf-email').value         = p.email || '';
+    document.getElementById('pf-phone').value         = p.phone || '';
+    document.getElementById('pf-address').value       = p.address || '';
+    document.getElementById('pf-dob').value           = p.date_of_birth || '';
+    document.getElementById('pf-blood-type').value    = p.blood_type || '';
+    document.getElementById('pf-medical-notes').value = p.medical_notes || '';
+    profilePhotoDataUrl = p.photo || '';
+    renderProfileAvatar();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+function handleProfilePhotoSelected(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const size = 512;
+      const canvas = document.createElement('canvas');
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      const scale = Math.max(size / img.width, size / img.height);
+      const dw = img.width * scale, dh = img.height * scale;
+      ctx.drawImage(img, (size - dw) / 2, (size - dh) / 2, dw, dh);
+      profilePhotoDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      renderProfileAvatar();
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function saveProfile() {
+  if (!currentUser) return;
+  const email = document.getElementById('pf-email').value.trim();
+  try {
+    const p = await api('/api/profile', 'POST', {
+      email,
+      phone: document.getElementById('pf-phone').value.trim(),
+      address: document.getElementById('pf-address').value.trim(),
+      date_of_birth: document.getElementById('pf-dob').value,
+      blood_type: document.getElementById('pf-blood-type').value,
+      medical_notes: document.getElementById('pf-medical-notes').value.trim(),
+      photo: profilePhotoDataUrl,
+    });
+    currentUser.email = p.email;
+    sessionStorage.setItem('ga_user', JSON.stringify(currentUser));
+    toast('Profile saved ✓');
+  } catch(e) { toast(e.message || 'Could not save profile', 'err'); }
+}
+
+// ── GUARDIAN INBOX (sessions where I'm a linked guardian) ──
+let currentInboxSessionId = null;
+
+function showInboxView(view) {
+  document.getElementById('pnl-inbox-list').style.display = view === 'list' ? 'block' : 'none';
+  document.getElementById('pnl-inbox-chat').style.display = view === 'chat' ? 'block' : 'none';
+  if (view === 'list') { currentInboxSessionId = null; loadGuardianRequests(); loadGuardianInbox(); }
+}
+
+async function loadGuardianRequests() {
+  if (!currentUser) return;
+  try {
+    const list = await api('/api/guardian-requests');
+    const section = document.getElementById('inbox-requests-section');
+    const el = document.getElementById('inbox-requests-list');
+    if (!list.length) { section.style.display = 'none'; return; }
+    section.style.display = 'block';
+    el.innerHTML = list.map(r => `
+      <div class="guardian-item">
+        <div class="g-avatar">${esc(r.traveler_username[0].toUpperCase())}</div>
+        <div class="g-info">
+          <div class="g-name">${esc(r.traveler_username)}</div>
+          <div class="g-contact">wants to add you as a guardian</div>
+        </div>
+        <button class="btn-test-email" onclick="respondToGuardianRequest('${esc(r.id)}', true)">Accept</button>
+        <span class="g-remove" onclick="respondToGuardianRequest('${esc(r.id)}', false)">✕</span>
+      </div>`).join('');
+  } catch(e) {}
+}
+
+async function respondToGuardianRequest(id, accept) {
+  try {
+    await api(`/api/guardians/${id}/respond`, 'POST', { accept });
+    toast(accept ? 'Accepted ✓' : 'Declined');
+    loadGuardianRequests();
+    loadGuardianInbox();
+  } catch(e) { toast(e.message || 'Could not respond', 'err'); }
+}
+
+async function loadGuardianInbox() {
+  if (!currentUser) return;
+  try {
+    const list = await api('/api/guardian-inbox');
+    const el = document.getElementById('inbox-list');
+    if (!list.length) {
+      el.innerHTML = '<div class="empty-state">No one has added you as a guardian yet.<br/>Ask them to enter your username when saving you as a guardian.</div>';
+      return;
+    }
+    el.innerHTML = list.map(s => `
+      <div class="journey-card ${s.status==='ACTIVE'||s.status==='DURESS'?'active-card':''}" onclick="openGuardianChat('${esc(s.session_id)}')">
+        <div class="jc-row">
+          <div class="jc-dest">${s.session_type === 'DAILY' ? '🔁' : '→'} ${esc(s.destination)}</div>
+          <span class="chip ${statusChipClass(s)}">${s.status === 'DORMANT' ? '😴 SLEEPING' : esc(s.status)}</span>
+          <span class="chip">L${s.level}</span>
+        </div>
+        <div class="jc-meta">${esc(s.user)}</div>
+      </div>`).join('');
+  } catch(e) {}
+}
+
+async function openGuardianChat(sessionId) {
+  currentInboxSessionId = sessionId;
+  showInboxView('chat');
+  try {
+    const s = await api(`/api/session/${sessionId}`);
+    document.getElementById('inbox-chat-user').textContent   = s.user_name;
+    document.getElementById('inbox-chat-status').textContent = s.status;
+    document.getElementById('inbox-chat-status').className   = `chip ${statusChipClass(s)}`;
+    document.getElementById('inbox-chat-level').textContent  = `Level ${s.escalation_level}`;
+
+    const rows = [
+      ['Destination', s.destination],
+      ['Last Check-In', s.last_checkin ? new Date(s.last_checkin).toLocaleString() : 'Never'],
+      ['Last Location', s.last_location || 'Unknown'],
+    ];
+    document.getElementById('inbox-case-grid').innerHTML = rows.map(([k, v]) =>
+      `<div class="case-row"><div class="case-key">${esc(k)}</div><div class="case-val">${esc(v)}</div></div>`).join('');
+  } catch(e) { toast(e.message, 'err'); }
+  loadInboxMessages();
+}
+
+async function loadInboxMessages() {
+  if (!currentInboxSessionId) return;
+  try {
+    const list = await api(`/api/messages?session_id=${currentInboxSessionId}`);
+    const el = document.getElementById('inbox-msg-list');
+    if (!list.length) { el.innerHTML = '<div class="empty-state">No messages yet.</div>'; return; }
+    el.innerHTML = list.map(m => `
+      <div class="msg from-${esc(m.sender)}">
+        <div class="msg-label">${m.sender === 'user' ? esc(m.sender_label) : `${esc(m.sender_label)} (guardian)`} · ${new Date(m.timestamp).toLocaleTimeString()}</div>
+        <div>${esc(m.text)}</div>
+      </div>`).join('');
+    el.scrollTop = el.scrollHeight;
+  } catch(e) {}
+}
+
+async function sendInboxReply() {
+  if (!currentInboxSessionId || !currentUser) return;
+  const text = document.getElementById('inbox-msg-text').value.trim();
+  if (!text) { toast('Enter a message', 'err'); return; }
+  try {
+    await api('/api/message/guardian-reply', 'POST', {
+      session_id: currentInboxSessionId, guardian_user_id: currentUser.id, text,
+    });
+    document.getElementById('inbox-msg-text').value = '';
+    toast('Reply sent ✓');
+    loadInboxMessages();
+  } catch(e) { toast(e.message || 'Could not send reply', 'err'); }
+}
+
 // ── CREATE JOURNEY — GUARDIANS ─────────────
+// Shared across the Trip and Daily Usage create forms — only one is ever
+// visible at a time, so both pickers render off the same journeyGuardians state.
 function renderCreateGuardians() {
-  const el = document.getElementById('create-guardian-list');
+  let html;
   if (!savedGuardians.length && !journeyGuardians.length) {
-    el.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:4px 0 8px;">No saved guardians. Add one below.</div>';
-    return;
+    html = '<div style="font-size:12px;color:var(--muted);padding:4px 0 8px;">No saved guardians. Add one below.</div>';
+  } else {
+    // Saved guardians as checkboxes
+    const savedHtml = savedGuardians.map(g => {
+      const checked = journeyGuardians.some(j => j.id === g.id);
+      return `
+        <div class="guardian-item ${checked ? 'selected' : ''}" onclick="toggleJourneyGuardian('${esc(g.id)}')" style="cursor:pointer;">
+          <div class="g-check ${checked ? 'checked' : ''}" id="gcheck-${esc(g.id)}"></div>
+          <div class="g-avatar">${esc(g.name[0].toUpperCase())}</div>
+          <div class="g-info">
+            <div class="g-name">${esc(g.name)} ${g.linked_user_id ? `<span class="chip green" style="margin-left:4px;">🔗</span>` : ''}</div>
+            <div class="g-contact">${esc([g.email, g.phone].filter(Boolean).join(' · ')) || '—'}</div>
+          </div>
+        </div>`;
+    }).join('');
+
+    // Journey-only guardians (not saved)
+    const localHtml = journeyGuardians.filter(j => !j.id).map((g, i) => `
+      <div class="guardian-item selected">
+        <div class="g-avatar">${esc(g.name[0].toUpperCase())}</div>
+        <div class="g-info">
+          <div class="g-name">${esc(g.name)} <span style="font-size:10px;color:var(--muted);">(this journey)</span></div>
+          <div class="g-contact">${esc([g.email, g.phone].filter(Boolean).join(' · ')) || '—'}</div>
+        </div>
+        <span class="g-remove" onclick="removeJourneyGuardian(${i})">✕</span>
+      </div>`).join('');
+
+    html = savedHtml + localHtml;
   }
 
-  // Saved guardians as checkboxes
-  const savedHtml = savedGuardians.map(g => {
-    const checked = journeyGuardians.some(j => j.id === g.id);
-    return `
-      <div class="guardian-item ${checked ? 'selected' : ''}" onclick="toggleJourneyGuardian('${g.id}')" style="cursor:pointer;">
-        <div class="g-check ${checked ? 'checked' : ''}" id="gcheck-${g.id}"></div>
-        <div class="g-avatar">${g.name[0].toUpperCase()}</div>
-        <div class="g-info">
-          <div class="g-name">${g.name}</div>
-          <div class="g-contact">${[g.email, g.phone].filter(Boolean).join(' · ') || '—'}</div>
-        </div>
-      </div>`;
-  }).join('');
-
-  // Journey-only guardians (not saved)
-  const localHtml = journeyGuardians.filter(j => !j.id).map((g, i) => `
-    <div class="guardian-item selected">
-      <div class="g-avatar">${g.name[0].toUpperCase()}</div>
-      <div class="g-info">
-        <div class="g-name">${g.name} <span style="font-size:10px;color:var(--muted);">(this journey)</span></div>
-        <div class="g-contact">${[g.email, g.phone].filter(Boolean).join(' · ') || '—'}</div>
-      </div>
-      <span class="g-remove" onclick="removeJourneyGuardian(${i})">✕</span>
-    </div>`).join('');
-
-  el.innerHTML = savedHtml + localHtml;
+  document.querySelectorAll('.guardian-picker-list').forEach(el => el.innerHTML = html);
 }
 
 function toggleJourneyGuardian(id) {
@@ -947,19 +1685,20 @@ function removeJourneyGuardian(localIdx) {
   renderCreateGuardians();
 }
 
-async function addAndSaveGuardian() {
+async function addAndSaveGuardian(suffix) {
   if (!currentUser) return;
-  const name  = document.getElementById('inp-gname').value.trim();
-  const phone = document.getElementById('inp-gphone').value.trim();
-  const email = document.getElementById('inp-gemail').value.trim();
+  suffix = suffix || '';
+  const name  = document.getElementById('inp-gname'  + suffix).value.trim();
+  const phone = document.getElementById('inp-gphone' + suffix).value.trim();
+  const email = document.getElementById('inp-gemail' + suffix).value.trim();
   if (!name) { toast('Enter a guardian name', 'err'); return; }
   try {
-    const g = await api('/api/guardians', 'POST', { user_id: currentUser.id, name, email, phone });
+    const g = await api('/api/guardians', 'POST', { name, email, phone });
     savedGuardians.push(g);
     journeyGuardians.push({ ...g });
-    document.getElementById('inp-gname').value  = '';
-    document.getElementById('inp-gphone').value = '';
-    document.getElementById('inp-gemail').value = '';
+    document.getElementById('inp-gname'  + suffix).value = '';
+    document.getElementById('inp-gphone' + suffix).value = '';
+    document.getElementById('inp-gemail' + suffix).value = '';
     renderCreateGuardians();
     toast(`${g.name} added`);
   } catch(e) { toast(e.message, 'err'); }
@@ -980,8 +1719,16 @@ async function startJourney() {
   const duressCode = document.getElementById('inp-duress').value.trim() || 'HELP999';
 
   const guardianPayload = journeyGuardians.map(g => ({
-    name: g.name, contact: g.phone || '', email: g.email || ''
+    name: g.name, contact: g.phone || '', email: g.email || '', linked_user_id: g.linked_user_id || ''
   }));
+
+  const mapsLink   = document.getElementById('inp-maps-link').value.trim();
+  const latitude   = document.getElementById('inp-lat').value.trim();
+  const longitude  = document.getElementById('inp-lng').value.trim();
+  const route      = document.getElementById('inp-route').value.trim();
+  const commMethod = document.getElementById('inp-comm-method').value.trim();
+  const country    = document.getElementById('inp-country').value.trim();
+  const companions = collectCompanions();
 
   try {
     const res = await api('/api/journey/start', 'POST', {
@@ -992,15 +1739,25 @@ async function startJourney() {
       guardians: guardianPayload,
       safe_code: safeCode,
       duress_code: duressCode,
-      user_id: currentUser ? currentUser.id : '',
+      maps_link: mapsLink,
+      latitude: latitude,
+      longitude: longitude,
+      route: route,
+      communication_method: commMethod,
+      country: country,
+      companions: companions,
     });
 
     currentSession = {
       id: res.session_id, name, dest,
       interval: interval0, safeCode, duressCode,
       nextCheckin: res.next_checkin,
+      type: 'TRIP', status: 'ACTIVE', windows: [],
+      mapsLink, latitude, longitude, route, commMethod, companions,
+      country, emergencyNumber: res.emergency_number || '',
     };
     lastLevel = 0;
+    lastMessageCount = 0;
     journeyGuardians = [];
 
     document.getElementById('ci-sid').value     = res.session_id;
@@ -1009,27 +1766,145 @@ async function startJourney() {
 
     showView('active');
     showActivePanel();
+    loadMessages(); // fresh session — clears any previous journey's thread immediately instead of waiting on the next poll
     startPolling();
     updateAlertIndicator(0, false);
     toast('Journey started! Stay safe 🛡');
   } catch(e) { toast(e.message, 'err'); }
 }
 
+// ── DAILY USAGE ───────────────────────────
+function localTimeToUtcMinutes(hhmm) {
+  const [h, m] = hhmm.split(':').map(Number);
+  const d = new Date();
+  d.setHours(h, m, 0, 0);
+  return d.getUTCHours() * 60 + d.getUTCMinutes();
+}
+
+async function startDailyUsage() {
+  if (!currentUser) { toast('You must be signed in', 'err'); return; }
+  const name = currentUser.username;
+
+  const windows = collectDailyWindows();
+  if (!windows.length || windows.some(w => !w.start_local || !w.end_local)) {
+    toast('At least one complete active window is required', 'err'); return;
+  }
+  const label = formatWindows(windows);
+  const activeDays = collectActiveDays();
+
+  const interval0 = parseInt(document.getElementById('inp-daily-interval-0').value);
+  const interval1 = parseInt(document.getElementById('inp-daily-interval-1').value);
+  const interval2 = parseInt(document.getElementById('inp-daily-interval-2').value);
+  const interval3 = parseInt(document.getElementById('inp-daily-interval-3').value);
+
+  const safeCode   = document.getElementById('inp-daily-safe').value.trim()   || 'SAFE123';
+  const duressCode = document.getElementById('inp-daily-duress').value.trim() || 'HELP999';
+
+  const guardianPayload = journeyGuardians.map(g => ({
+    name: g.name, contact: g.phone || '', email: g.email || '', linked_user_id: g.linked_user_id || ''
+  }));
+
+  try {
+    const res = await api('/api/journey/start', 'POST', {
+      user_name: name,
+      destination: label,
+      check_in_interval_minutes: interval0,
+      escalation_intervals: { '1': interval1, '2': interval2, '3': interval3 },
+      guardians: guardianPayload,
+      safe_code: safeCode,
+      duress_code: duressCode,
+      session_type: 'DAILY',
+      windows: windows,
+      active_days: activeDays,
+    });
+
+    currentSession = {
+      id: res.session_id, name, dest: label,
+      interval: interval0, safeCode, duressCode,
+      nextCheckin: res.next_checkin,
+      type: 'DAILY', status: 'ACTIVE', windows, activeDays,
+    };
+    lastLevel = 0;
+    lastMessageCount = 0;
+    journeyGuardians = [];
+
+    document.getElementById('ci-sid').value     = res.session_id;
+    document.getElementById('cf-sid').value     = res.session_id;
+    document.getElementById('log-filter').value = res.session_id;
+
+    showView('active');
+    showActivePanel();
+    loadMessages(); // fresh session — clears any previous journey's thread immediately instead of waiting on the next poll
+    startPolling();
+    updateAlertIndicator(0, false);
+    toast('Daily Usage turned on 🛡');
+  } catch(e) { toast(e.message, 'err'); }
+}
+
 function showActivePanel() {
+  const isDaily = currentSession.type === 'DAILY';
   document.getElementById('disp-sid').textContent       = currentSession.id;
   document.getElementById('disp-user-chip').textContent = currentSession.name;
   document.getElementById('disp-dest-chip').textContent = currentSession.dest;
+  document.getElementById('active-section-title').textContent = isDaily ? 'Daily Usage' : 'Active Journey';
+  document.getElementById('timer-card-label').textContent = isDaily ? 'Check-In Status' : 'Next Check-In Countdown';
+  document.getElementById('btn-end-session').textContent = isDaily ? 'Turn Off' : 'End Journey';
+  document.getElementById('btn-end-session').setAttribute('onclick', isDaily ? 'endJourney(true)' : 'endJourney(false)');
+
+  const isEnded = currentSession.status === 'ENDED';
+  document.getElementById('active-btn-row').style.display  = isEnded ? 'none'  : 'flex';
+  document.getElementById('active-ended-msg').style.display = isEnded ? 'block' : 'none';
+
+  document.getElementById('active-msg-text').disabled     = isEnded;
+  document.getElementById('active-msg-code').disabled     = isEnded;
+  document.getElementById('active-msg-send-btn').disabled  = isEnded;
+  document.getElementById('active-msg-text').placeholder  = isEnded ? 'This session has ended' : 'Message your guardians…';
+
+  const windowChip = document.getElementById('disp-window-chip');
+  if (isDaily && currentSession.windows && currentSession.windows.length) {
+    windowChip.textContent = `⏱ ${formatWindows(currentSession.windows)} · ${formatActiveDays(currentSession.activeDays)}`;
+    windowChip.style.display = 'inline-block';
+  } else {
+    windowChip.style.display = 'none';
+  }
+
+  const detailsCard = document.getElementById('trip-details-card');
+  const rows = []; // [label, pre-built-safe-html] — values are escaped individually below since some rows embed real markup (links/emphasis)
+  if (!isDaily) {
+    if (currentSession.route)      rows.push(['Route', esc(currentSession.route)]);
+    if (currentSession.latitude || currentSession.longitude)
+                                    rows.push(['Coordinates', `${esc(currentSession.latitude) || '—'}, ${esc(currentSession.longitude) || '—'}`]);
+    if (currentSession.mapsLink)   rows.push(['Google Maps', `<a href="${esc(currentSession.mapsLink)}" target="_blank" rel="noopener" style="color:var(--accent);">Open location →</a>`]);
+    if (currentSession.commMethod) rows.push(['Communication', esc(currentSession.commMethod)]);
+    if (currentSession.companions && currentSession.companions.length)
+      rows.push(['Traveling With', currentSession.companions.map(c => esc(c.contact ? `${c.name} (${c.contact})` : c.name)).join(', ')]);
+    if (currentSession.country) {
+      const num = currentSession.emergencyNumber;
+      rows.push(['Emergency Number', num ? `${esc(currentSession.country)}: <strong>${esc(num)}</strong>` : `${esc(currentSession.country)} (not on file — look up locally)`]);
+    }
+  }
+  if (rows.length) {
+    document.getElementById('trip-details-grid').innerHTML = rows.map(([k, v]) =>
+      `<div class="case-row"><div class="case-key">${esc(k)}</div><div class="case-val">${v}</div></div>`).join('');
+    detailsCard.style.display = 'block';
+  } else {
+    detailsCard.style.display = 'none';
+  }
+
   const b = document.getElementById('globalBadge');
   b.textContent = 'ACTIVE';
   b.className   = 'status-badge';
 }
 
-async function endJourney() {
+async function endJourney(isDaily) {
   if (!currentSession) return;
-  if (!confirm('End this journey? Your guardians will be notified you arrived safely.')) return;
+  const msg = isDaily
+    ? 'Turn off this Daily Usage profile? It will stop monitoring until you turn it back on.'
+    : 'End this journey? Your guardians will be notified you arrived safely.';
+  if (!confirm(msg)) return;
   try {
     await api(`/api/journey/end?session_id=${currentSession.id}`, 'POST');
-    toast('Journey ended. Welcome back! 🏁');
+    toast(isDaily ? 'Daily Usage turned off.' : 'Journey ended. Welcome back! 🏁');
     stopPolling();
     const b = document.getElementById('globalBadge');
     b.textContent = 'OFFLINE';
@@ -1064,28 +1939,65 @@ function startPolling() {
   pollInterval  = setInterval(pollSession, 5000);
   timerInterval = setInterval(updateTimer, 1000);
   updateTimer();
+  stopLocationTracking(); // never silently carry live tracking over into a different session
 }
 function stopPolling() {
   clearInterval(pollInterval);
   clearInterval(timerInterval);
+  stopLocationTracking();
 }
 function updateTimer() {
   if (!currentSession) return;
+  const arc    = document.getElementById('timerArc');
+  const numEl  = document.getElementById('timerNum');
+  const lblEl  = document.getElementById('timerLabel');
+
+  if (currentSession.status === 'DORMANT') {
+    arc.style.strokeDashoffset = 408;
+    arc.className = 'timer-arc';
+    numEl.textContent = '😴';
+    const resumeTime = currentSession.nextCheckin
+      ? new Date(currentSession.nextCheckin).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
+      : null;
+    lblEl.textContent = resumeTime ? `Paused — resumes at ${resumeTime}` : 'Paused — outside active window';
+    return;
+  }
+
+  if (currentSession.status === 'ENDED') {
+    arc.style.strokeDashoffset = 408;
+    arc.className = 'timer-arc';
+    numEl.textContent = '✅';
+    lblEl.textContent = 'Ended';
+    return;
+  }
+
   const diff = Math.max(0, new Date(currentSession.nextCheckin).getTime() - Date.now());
   const mins = Math.floor(diff / 60000);
   const secs = Math.floor((diff % 60000) / 1000);
   const pct  = Math.max(0, diff / (currentSession.interval * 60000));
-  const arc  = document.getElementById('timerArc');
   arc.style.strokeDashoffset = 408 * (1 - pct);
-  document.getElementById('timerNum').textContent = `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
+  numEl.textContent = `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
   arc.className = pct > 0.5 ? 'timer-arc' : pct > 0.2 ? 'timer-arc warn' : 'timer-arc danger';
+  lblEl.textContent = 'remaining';
 }
-async function pollSession() {
+async function pollSession(silent) {
   if (!currentSession) return;
   try {
     const s        = await api(`/api/session/${currentSession.id}`);
     const newLevel = s.escalation_level;
     currentSession.nextCheckin = s.next_checkin;
+    currentSession.status      = s.status;
+
+    // `silent` = right after the user's own message-send action: update internal
+    // state only, with NO visible change (no popup, no badge/ladder flip). A
+    // Duress-code send must look on-screen identical to a Safe-code send — the
+    // real UI catches up on the next regular poll tick, decoupled from this action,
+    // exactly like the existing Check-In tab already behaves for the duress code.
+    if (silent) {
+      lastLevel = newLevel;
+      loadMessages();
+      return;
+    }
 
     if (newLevel > lastLevel) {
       // In-app popup alert on escalation (covers foreground case that SW push can't)
@@ -1096,8 +2008,126 @@ async function pollSession() {
     updateEscalationUI(newLevel, s.status);
     updateStatusBadge(s.status, newLevel);
     lastLevel = newLevel;
+    loadMessages();
   } catch(e) {}
 }
+
+// ── MESSAGES ──────────────────────────────
+function renderMessages(list) {
+  const el = document.getElementById('active-msg-list');
+  if (!list.length) { el.innerHTML = '<div class="empty-state">No messages yet.</div>'; return; }
+  el.innerHTML = list.map(m => `
+    <div class="msg from-${esc(m.sender)}">
+      <div class="msg-label">${m.sender === 'user' ? esc(m.sender_label) : `${esc(m.sender_label)} (guardian)`} · ${new Date(m.timestamp).toLocaleTimeString()}</div>
+      <div>${esc(m.text)}</div>
+    </div>`).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+async function loadMessages() {
+  if (!currentSession) return;
+  try {
+    const list = await api(`/api/messages?session_id=${currentSession.id}`);
+    renderMessages(list);
+    if (list.length > lastMessageCount) {
+      const newGuardianMsg = list.slice(lastMessageCount).find(m => m.sender === 'guardian');
+      if (newGuardianMsg) toast(`💬 ${newGuardianMsg.sender_label}: ${newGuardianMsg.text}`);
+    }
+    lastMessageCount = list.length;
+  } catch(e) {}
+}
+
+// ── LIVE LOCATION — opt-in, adaptive ping frequency ──
+let locationTrackingEnabled = false;
+let locationTimer = null;
+
+function locationPingIntervalMs() {
+  // More urgent the higher the current escalation level — mirrors the nag-loop pattern.
+  if (lastLevel >= 3) return 30 * 1000;       // Level 3-4 / DURESS: every 30s
+  if (lastLevel >= 1) return 2 * 60 * 1000;   // Level 1-2: every 2 min
+  return 5 * 60 * 1000;                       // Level 0 (calm): every 5 min
+}
+
+function toggleLocationTracking() {
+  if (locationTrackingEnabled) stopLocationTracking();
+  else startLocationTracking();
+}
+
+function startLocationTracking() {
+  if (!currentSession) return;
+  if (!navigator.geolocation) { toast('Geolocation is not supported on this device', 'err'); return; }
+  locationTrackingEnabled = true;
+  document.getElementById('location-toggle').classList.add('checked');
+  document.getElementById('location-status').style.display = 'block';
+  document.getElementById('location-status-text').textContent = 'Requesting location…';
+  pingLocationOnce();
+}
+
+function stopLocationTracking() {
+  locationTrackingEnabled = false;
+  if (locationTimer) { clearTimeout(locationTimer); locationTimer = null; }
+  const toggle = document.getElementById('location-toggle');
+  if (toggle) toggle.classList.remove('checked');
+  const status = document.getElementById('location-status');
+  if (status) status.style.display = 'none';
+}
+
+function pingLocationOnce() {
+  if (!locationTrackingEnabled || !currentSession) return;
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      if (!locationTrackingEnabled || !currentSession) return;
+      const { latitude, longitude } = pos.coords;
+      try {
+        await api('/api/location/ping', 'POST', { session_id: currentSession.id, lat: latitude, lng: longitude });
+        document.getElementById('location-status-text').textContent = `Updated ${new Date().toLocaleTimeString()} · pinging every ${Math.round(locationPingIntervalMs()/1000)}s`;
+        document.getElementById('location-map-link').href = `https://www.google.com/maps?q=${latitude},${longitude}`;
+      } catch (e) {}
+      locationTimer = setTimeout(pingLocationOnce, locationPingIntervalMs());
+    },
+    (err) => {
+      toast('Could not get your location — check permissions', 'err');
+      stopLocationTracking();
+    },
+    { enableHighAccuracy: true, timeout: 15000 }
+  );
+}
+
+async function sendMessage(text, code) {
+  if (!currentSession) return false;
+  if (!text) { toast('Enter a message', 'err'); return false; }
+  if (!code) { toast('Enter your code', 'err'); return false; }
+  try {
+    await api('/api/message/send', 'POST', { session_id: currentSession.id, code, text });
+    toast('Message sent ✓');
+    // silent=true: never show the escalation popup as a *result* of this action — a Duress-code
+    // send must look identical to a Safe-code send to anyone watching the screen.
+    await pollSession(true);
+    return true;
+  } catch(e) { toast(e.message || 'Could not send message', 'err'); return false; }
+}
+
+async function sendMessageFromPopup() {
+  const text = document.getElementById('ap-msg-text').value.trim();
+  const code = document.getElementById('ap-msg-code').value.trim();
+  const ok = await sendMessage(text, code);
+  if (ok) {
+    document.getElementById('ap-msg-text').value = '';
+    document.getElementById('ap-msg-code').value = '';
+    closeAlertPopup();
+  }
+}
+
+async function sendMessageFromActiveView() {
+  const text = document.getElementById('active-msg-text').value.trim();
+  const code = document.getElementById('active-msg-code').value.trim();
+  const ok = await sendMessage(text, code);
+  if (ok) {
+    document.getElementById('active-msg-text').value = '';
+    document.getElementById('active-msg-code').value = '';
+  }
+}
+
 function updateEscalationUI(level, status) {
   for (let i = 0; i <= 4; i++) {
     const r = document.getElementById(`rung${i}`);
@@ -1117,6 +2147,9 @@ function updateStatusBadge(status, level) {
   } else if (level >= 2) {
     b.textContent  = `L${level} ALERT`; b.className  = 'status-badge warn';
     sc.textContent = `L${level} ALERT`; sc.className = 'chip yellow';
+  } else if (status === 'DORMANT') {
+    b.textContent  = '😴 SLEEPING'; b.className  = 'status-badge sleep';
+    sc.textContent = '😴 SLEEPING'; sc.className = 'chip gray';
   } else if (status === 'ENDED') {
     b.textContent  = 'ENDED'; b.className  = 'status-badge';
     sc.textContent = 'ENDED'; sc.className = 'chip';
@@ -1129,18 +2162,18 @@ function updateStatusBadge(status, level) {
 // ── SESSIONS (MONITOR) ────────────────────
 async function loadSessions() {
   try {
-    const list = await api('/api/sessions');
+    const list = await api('/api/sessions?mine=false');
     const el   = document.getElementById('sessions-list');
     if (!list.length) { el.innerHTML = '<div class="empty-state">No sessions yet.</div>'; return; }
     el.innerHTML = list.map(s => `
-      <div class="card" style="cursor:pointer" onclick="document.getElementById('cf-sid').value='${s.session_id}'">
+      <div class="card" style="cursor:pointer" onclick="document.getElementById('cf-sid').value='${esc(s.session_id)}'">
         <div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:6px;">
-          <span class="chip ${s.status==='ACTIVE'?'green':s.status==='DURESS'||s.level===4?'red':'yellow'}">${s.status}</span>
-          <span style="font-size:12px;font-weight:700;">${s.user}</span>
+          <span class="chip ${s.status==='ACTIVE'?'green':s.status==='DURESS'||s.level===4?'red':'yellow'}">${esc(s.status)}</span>
+          <span style="font-size:12px;font-weight:700;">${esc(s.user)}</span>
           <span class="chip" style="margin-left:auto;">L${s.level}</span>
         </div>
-        <div style="font-size:11px;color:var(--muted);font-family:var(--mono);">${s.session_id}</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:3px;">→ ${s.destination}</div>
+        <div style="font-size:11px;color:var(--muted);font-family:var(--mono);">${esc(s.session_id)}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:3px;">→ ${esc(s.destination)}</div>
       </div>`).join('');
   } catch(e) { toast(e.message, 'err'); }
 }
@@ -1153,10 +2186,46 @@ async function loadCaseFile() {
     const cf = await api(`/api/case/${sid}`);
     document.getElementById('case-file-display').style.display = 'block';
     document.getElementById('case-grid').innerHTML = Object.entries(cf).map(([k, v]) =>
-      `<div class="case-row"><div class="case-key">${k}</div><div class="case-val">${Array.isArray(v) ? v.join(', ') : v || '—'}</div></div>`
+      `<div class="case-row"><div class="case-key">${esc(k)}</div><div class="case-val">${esc(Array.isArray(v) ? v.join(', ') : v) || '—'}</div></div>`
     ).join('');
     toast('Case file loaded');
-  } catch(e) { toast('No case file yet — Level 4 not triggered', 'err'); }
+  } catch(e) { toast(e.message || 'No case file yet — Level 4 not triggered', 'err'); }
+}
+
+// ── EMERGENCY NUMBERS (admin) ─────────────
+async function loadEmergencyNumbers() {
+  try {
+    const list = await api('/api/admin/emergency-numbers');
+    const el = document.getElementById('emergency-numbers-list');
+    el.innerHTML = list.map(e => `
+      <div class="case-row">
+        <div class="case-key">${esc(e.country)}</div>
+        <div class="case-val">${esc(e.number)} <span style="color:var(--muted);font-size:10px;">(verified ${esc(e.last_verified)})</span>
+          <span class="g-remove" onclick="deleteEmergencyNumber('${esc(e.country)}')">✕</span>
+        </div>
+      </div>`).join('');
+  } catch(e) { /* not admin — leave the section empty/quiet */ }
+}
+
+async function upsertEmergencyNumber() {
+  const country = document.getElementById('en-country').value.trim();
+  const number  = document.getElementById('en-number').value.trim();
+  if (!country || !number) { toast('Country and number are required', 'err'); return; }
+  try {
+    await api('/api/admin/emergency-numbers', 'POST', { country, number });
+    document.getElementById('en-country').value = '';
+    document.getElementById('en-number').value  = '';
+    toast(`${country} saved ✓`);
+    loadEmergencyNumbers();
+  } catch(e) { toast(e.message || 'Could not save', 'err'); }
+}
+
+async function deleteEmergencyNumber(country) {
+  try {
+    await api(`/api/admin/emergency-numbers/${encodeURIComponent(country)}`, 'DELETE');
+    toast(`${country} removed`);
+    loadEmergencyNumbers();
+  } catch(e) { toast(e.message || 'Could not remove', 'err'); }
 }
 
 // ── EVENT LOG ─────────────────────────────
@@ -1168,26 +2237,34 @@ async function loadLog() {
     if (!events.length) { el.innerHTML = '<div class="empty-state">No events yet.</div>'; return; }
     el.innerHTML = events.map(e => `
       <div class="log-item l${e.level}">
-        <div class="log-time">${new Date(e.timestamp).toLocaleTimeString()} · ${e.level_name}</div>
-        <div class="log-msg">${e.message}</div>
+        <div class="log-time">${new Date(e.timestamp).toLocaleTimeString()} · ${esc(e.level_name)}</div>
+        <div class="log-msg">${esc(e.message)}</div>
       </div>`).join('');
   } catch(e) {}
 }
 
 // ── EMAIL TEST ────────────────────────────
 async function sendTestEmail(email) {
+  const requestedBy = currentUser ? (currentUser.email || `user ${currentUser.username}`) : '';
   try {
-    await api('/api/test-email', 'POST', { to: email });
+    await api('/api/test-email', 'POST', { to: email, requested_by: requestedBy });
     toast(`Test email sent to ${email} ✓`);
   } catch(e) { toast(e.message || 'Test email failed', 'err'); }
 }
 
 // ── INIT ──────────────────────────────────
-(function init() {
+(async function init() {
   registerServiceWorker();  // register SW as early as possible
-  const saved = sessionStorage.getItem('ga_user');
-  if (saved) { try { setUser(JSON.parse(saved)); } catch(e) {} }
+  // The session lives in an httpOnly cookie now, not in anything JS can read — sessionStorage
+  // is just a display cache, so always re-verify against the server before trusting it.
+  try {
+    const me = await api('/api/me');
+    setUser(me);
+  } catch (e) {
+    sessionStorage.removeItem('ga_user');
+  }
   setInterval(() => { if (document.querySelector('#tab-log.active')) loadLog(); }, 8000);
+  setInterval(() => { if (currentInboxSessionId && document.getElementById('pnl-inbox-chat').style.display !== 'none') loadInboxMessages(); }, 8000);
 })();
 </script>
 </body>
