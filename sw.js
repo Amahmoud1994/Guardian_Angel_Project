@@ -1,7 +1,7 @@
 // Guardian Angel — Service Worker
 // Handles: install/activate lifecycle, offline caching, Web Push alerts
 
-const CACHE = 'guardian-angel-v1';
+const CACHE = 'guardian-angel-v2';
 const PRECACHE = ['/', '/manifest.json', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 // ── Install: pre-cache app shell ──────────────────────────────────────────────
@@ -71,7 +71,8 @@ self.addEventListener('push', event => {
     vibrate,
     tag: 'guardian-alert',
     renotify: true,
-    requireInteraction: level >= 3,
+    requireInteraction: true,   // keep it on screen until the user acts on it
+    silent: false,
     data: { level, url: '/' },
     actions: level < 4
       ? [{ action: 'checkin', title: 'Check In Now' }]

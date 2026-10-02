@@ -31,7 +31,7 @@ from pydantic import BaseModel
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
-from sqlalchemy import Boolean, Column, Integer, String, select, text
+from sqlalchemy import Boolean, Column, Integer, String, delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
@@ -304,6 +304,15 @@ VAPID: dict = {"private": None, "public": None}
 
 
 def _load_or_create_vapid():
+    # Prefer env vars (hosted deploys) so the keys never need to be committed to git.
+    # The private key is a PEM; "\n" escapes are accepted for single-line env values.
+    env_pub  = os.getenv("VAPID_PUBLIC_KEY", "").strip()
+    env_priv = os.getenv("VAPID_PRIVATE_KEY", "").strip().replace("\\n", "\n")
+    if env_pub and env_priv:
+        VAPID["public"]  = env_pub
+        VAPID["private"] = env_priv
+        print("[VAPID] Keys loaded from VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY")
+        return
     if VAPID_PATH.exists():
         keys = json.loads(VAPID_PATH.read_text())
         VAPID["private"] = keys["private"]
@@ -926,14 +935,30 @@ async def send_push_to_user(user_id: str, title: str, body_text: str, level: int
             data=payload,
             vapid_private_key=VAPID["private"],
             vapid_claims={"sub": f"mailto:{smtp_user}"},
+            # ttl=0 (the default) makes the push service drop the message if the phone is
+            # asleep; keep it queued for an hour and mark it urgent so it wakes the device.
+            ttl=3600,
+            headers={"Urgency": "high"},
+            timeout=10,
         )
 
+    dead = []
     for sub in subs:
         try:
             await asyncio.get_running_loop().run_in_executor(None, _send_one, sub)
             print(f"[PUSH] Sent level {level} alert to user {user_id}")
+        except WebPushException as exc:
+            status = getattr(exc.response, "status_code", None)
+            if status in (404, 410):  # subscription expired / app uninstalled
+                dead.append(sub.id)
+            print(f"[PUSH ERROR] user={user_id} status={status}: {exc}")
         except Exception as exc:
             print(f"[PUSH ERROR] user={user_id}: {exc}")
+
+    if dead:
+        async with AsyncSessionLocal() as db:
+            await db.execute(delete(PushSubscriptionModel).where(PushSubscriptionModel.id.in_(dead)))
+            await db.commit()
 
 
 # ─────────────────────────────────────────────
@@ -1023,6 +1048,33 @@ async def watchdog():
                         await db.commit()
 
 
+# Render's free tier spins the instance down after ~15 min without inbound HTTP traffic,
+# which stops the watchdog (and wipes the SQLite DB). While any journey is being monitored,
+# ping our own public URL so escalations and pushes still fire with the app closed.
+KEEPALIVE_URL = os.getenv("KEEPALIVE_URL") or os.getenv("RENDER_EXTERNAL_URL")
+
+
+async def keepalive():
+    if not KEEPALIVE_URL:
+        return
+    import urllib.request
+    url = KEEPALIVE_URL.rstrip("/") + "/health"
+    while True:
+        await asyncio.sleep(10 * 60)
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(SessionModel.session_id).where(SessionModel.status.in_(["ACTIVE", "DORMANT"])).limit(1)
+            )
+            if result.first() is None:
+                continue
+        try:
+            await asyncio.get_running_loop().run_in_executor(
+                None, lambda: urllib.request.urlopen(url, timeout=15).read()
+            )
+        except Exception as exc:
+            print(f"[KEEPALIVE] ping failed: {exc}")
+
+
 # ─────────────────────────────────────────────
 #  Lifespan
 # ─────────────────────────────────────────────
@@ -1080,6 +1132,7 @@ async def lifespan(_):
             print(f"[EMERGENCY NUMBERS] Loaded {len(rows)} countries from the database")
 
     asyncio.create_task(watchdog())
+    asyncio.create_task(keepalive())
     yield
 
 
