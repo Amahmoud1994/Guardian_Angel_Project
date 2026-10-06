@@ -6,6 +6,7 @@ Dead Man's Switch safety escalation system
 import asyncio
 import base64
 import hashlib
+import html as html_lib
 import json
 import os
 import secrets
@@ -26,12 +27,12 @@ load_dotenv(override=True)
 
 from fastapi import Cookie, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
-from sqlalchemy import Boolean, Column, Integer, String, delete, select, text
+from sqlalchemy import Boolean, Column, Integer, String, delete, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
@@ -186,7 +187,24 @@ class UserGuardianModel(Base):
     linked_user_id  = Column(String, nullable=True, default="")  # set if this guardian is also a registered app user
     linked_username = Column(String, nullable=True, default="")
     status          = Column(String, nullable=False, default="accepted")  # "accepted" | "pending" | "declined"
+    verification    = Column(String, nullable=True, default="")  # email check: "" | "pending" | "verified" | "declined"
+    verify_token    = Column(String, nullable=True, default="")  # single-use token in the verification email link
+    verify_sent_at  = Column(String, nullable=True, default="")
     created_at      = Column(String, nullable=False)
+
+
+class JourneyPlanModel(Base):
+    """A journey saved to the user's account — started later by hand, or automatically at scheduled_start."""
+    __tablename__ = "journey_plans"
+
+    id              = Column(String, primary_key=True)
+    user_id         = Column(String, nullable=False)
+    payload         = Column(String, nullable=False)  # JSON of JourneyStart (the full form)
+    scheduled_start = Column(String, nullable=True, default="")  # UTC ISO; "" = not scheduled
+    last_session_id = Column(String, nullable=True, default="")  # most recent session started from this plan
+    last_started_at = Column(String, nullable=True, default="")
+    created_at      = Column(String, nullable=False)
+    updated_at      = Column(String, nullable=False)
 
 
 class EmergencyNumberModel(Base):
@@ -386,7 +404,8 @@ DURESS_CODE = "HELP999"
 
 # The app's own public URL, used to build the guardian reply link in alert emails.
 # Set APP_BASE_URL in .env to your real deployed URL (e.g. https://guardian-angel-xxxx.onrender.com).
-APP_BASE_URL = os.getenv("APP_BASE_URL", "http://localhost:8000").rstrip("/")
+# On Render, RENDER_EXTERNAL_URL is set automatically, so links work without extra config.
+APP_BASE_URL = (os.getenv("APP_BASE_URL") or os.getenv("RENDER_EXTERNAL_URL") or "http://localhost:8000").rstrip("/")
 
 # ── Auth ────────────────────────────────────────────────────
 SESSION_COOKIE_NAME = "ga_session"
@@ -1005,6 +1024,10 @@ async def escalate(db: AsyncSession, session_id: str):
 async def watchdog():
     while True:
         await asyncio.sleep(10)
+        try:
+            await start_due_plans()
+        except Exception as exc:
+            print(f"[PLAN] Scheduled-start check failed: {exc}")
         async with AsyncSessionLocal() as db:
             result = await db.execute(
                 select(SessionModel).where(SessionModel.status.in_(["ACTIVE", "DORMANT"]))
@@ -1049,7 +1072,7 @@ async def watchdog():
 
 
 # Render's free tier spins the instance down after ~15 min without inbound HTTP traffic,
-# which stops the watchdog (and wipes the SQLite DB). While any journey is being monitored,
+# which stops the watchdog (and wipes the SQLite DB). While any journey is being monitored or scheduled,
 # ping our own public URL so escalations and pushes still fire with the app closed.
 KEEPALIVE_URL = os.getenv("KEEPALIVE_URL") or os.getenv("RENDER_EXTERNAL_URL")
 
@@ -1065,7 +1088,10 @@ async def keepalive():
             result = await db.execute(
                 select(SessionModel.session_id).where(SessionModel.status.in_(["ACTIVE", "DORMANT"])).limit(1)
             )
-            if result.first() is None:
+            scheduled = await db.execute(
+                select(JourneyPlanModel.id).where(JourneyPlanModel.scheduled_start != "").limit(1)
+            )
+            if result.first() is None and scheduled.first() is None:
                 continue
         try:
             await asyncio.get_running_loop().run_in_executor(
@@ -1108,6 +1134,9 @@ async def lifespan(_):
             "ALTER TABLE user_guardians ADD COLUMN linked_user_id TEXT DEFAULT ''",
             "ALTER TABLE user_guardians ADD COLUMN linked_username TEXT DEFAULT ''",
             "ALTER TABLE user_guardians ADD COLUMN status TEXT DEFAULT 'accepted'",
+            "ALTER TABLE user_guardians ADD COLUMN verification TEXT DEFAULT ''",
+            "ALTER TABLE user_guardians ADD COLUMN verify_token TEXT DEFAULT ''",
+            "ALTER TABLE user_guardians ADD COLUMN verify_sent_at TEXT DEFAULT ''",
         ]:
             try:
                 await conn.execute(text(stmt))
@@ -1185,15 +1214,27 @@ async def start_journey(
     body: JourneyStart, db: AsyncSession = Depends(get_db),
     user: Optional[UserModel] = Depends(get_current_user_optional),
 ):
+    # Starting a journey doesn't require an account (kept intentionally anonymous-capable —
+    # you can still be found via the session_id itself) — but if you ARE signed in, the
+    # journey is always attributed to your real account, never a client-supplied id.
+    s = await create_session(db, body, user.id if user else "")
+    return journey_started_response(s, body)
+
+
+def journey_started_response(s: SessionModel, body: JourneyStart) -> dict:
+    return {
+        "session_id": s.session_id, "message": "Journey started. Stay safe.", "next_checkin": s.next_checkin,
+        "emergency_number": get_emergency_number(body.country),
+    }
+
+
+async def create_session(db: AsyncSession, body: JourneyStart, owner_id: str) -> SessionModel:
+    """Create, log and commit a new monitored session — shared by direct starts and saved journeys."""
     if body.session_type == "DAILY" and not body.windows:
         raise HTTPException(400, "Daily Usage requires at least one active window")
 
     sid = str(uuid.uuid4())[:12]
     now = datetime.now(timezone.utc)
-    # Starting a journey doesn't require an account (kept intentionally anonymous-capable —
-    # you can still be found via the session_id itself) — but if you ARE signed in, the
-    # journey is always attributed to your real account, never a client-supplied id.
-    owner_id = user.id if user else ""
     s = SessionModel(
         session_id=sid,
         user_name=body.user_name,
@@ -1227,10 +1268,151 @@ async def start_journey(
         else f"Journey started for {body.user_name} to {body.destination}"
     await log_event(db, sid, 0, label)
     await db.commit()
+    return s
+
+
+# ── Saved journeys (plans) ────────────────────
+class PlanSave(BaseModel):
+    journey: JourneyStart
+    scheduled_start: str = ""  # ISO datetime with timezone; "" = save without scheduling
+
+
+def plan_to_dict(p: JourneyPlanModel) -> dict:
     return {
-        "session_id": sid, "message": "Journey started. Stay safe.", "next_checkin": s.next_checkin,
-        "emergency_number": get_emergency_number(body.country),
+        "id": p.id, "journey": json.loads(p.payload), "scheduled_start": p.scheduled_start or "",
+        "last_session_id": p.last_session_id or "", "last_started_at": p.last_started_at or "",
+        "created_at": p.created_at, "updated_at": p.updated_at,
     }
+
+
+def parse_schedule(value: str) -> str:
+    """Validate a requested start time → normalized UTC ISO string ("" if none)."""
+    value = (value or "").strip()
+    if not value:
+        return ""
+    try:
+        when = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        raise HTTPException(400, "Invalid start date/time")
+    if when.tzinfo is None:
+        raise HTTPException(400, "Start date/time must include a timezone")
+    when = when.astimezone(timezone.utc)
+    if when <= datetime.now(timezone.utc) + timedelta(seconds=30):
+        raise HTTPException(400, "The scheduled start must be in the future")
+    return when.isoformat()
+
+
+def validate_plan_journey(j: JourneyStart) -> None:
+    if j.session_type != "TRIP":
+        raise HTTPException(400, "Only trips can be saved as journeys")
+    if not j.user_name.strip() or not j.destination.strip():
+        raise HTTPException(400, "Name and destination are required")
+
+
+async def get_own_plan(db: AsyncSession, plan_id: str, user: UserModel) -> JourneyPlanModel:
+    result = await db.execute(select(JourneyPlanModel).where(JourneyPlanModel.id == plan_id))
+    plan = result.scalar_one_or_none()
+    if not plan:
+        raise HTTPException(404, "Saved journey not found")
+    if plan.user_id != user.id:
+        raise HTTPException(403, "Not your saved journey")
+    return plan
+
+
+@app.get("/api/plans")
+async def list_plans(db: AsyncSession = Depends(get_db), user: UserModel = Depends(get_current_user)):
+    result = await db.execute(
+        select(JourneyPlanModel).where(JourneyPlanModel.user_id == user.id)
+        .order_by(JourneyPlanModel.updated_at.desc())
+    )
+    return [plan_to_dict(p) for p in result.scalars().all()]
+
+
+@app.post("/api/plans")
+async def create_plan(body: PlanSave, db: AsyncSession = Depends(get_db), user: UserModel = Depends(get_current_user)):
+    validate_plan_journey(body.journey)
+    now = datetime.now(timezone.utc).isoformat()
+    plan = JourneyPlanModel(
+        id=str(uuid.uuid4())[:12], user_id=user.id, payload=body.journey.model_dump_json(),
+        scheduled_start=parse_schedule(body.scheduled_start), created_at=now, updated_at=now,
+    )
+    db.add(plan)
+    await db.commit()
+    return plan_to_dict(plan)
+
+
+@app.put("/api/plans/{plan_id}")
+async def update_plan(
+    plan_id: str, body: PlanSave, db: AsyncSession = Depends(get_db), user: UserModel = Depends(get_current_user),
+):
+    plan = await get_own_plan(db, plan_id, user)
+    validate_plan_journey(body.journey)
+    plan.payload         = body.journey.model_dump_json()
+    plan.scheduled_start = parse_schedule(body.scheduled_start)
+    plan.updated_at      = datetime.now(timezone.utc).isoformat()
+    await db.commit()
+    return plan_to_dict(plan)
+
+
+@app.delete("/api/plans/{plan_id}")
+async def delete_plan(plan_id: str, db: AsyncSession = Depends(get_db), user: UserModel = Depends(get_current_user)):
+    plan = await get_own_plan(db, plan_id, user)
+    await db.delete(plan)
+    await db.commit()
+    return {"ok": True}
+
+
+async def start_plan(db: AsyncSession, plan: JourneyPlanModel) -> tuple[SessionModel, JourneyStart]:
+    """Start a session from a saved journey. The plan is kept for reuse; any schedule is consumed."""
+    body = JourneyStart.model_validate_json(plan.payload)
+    s = await create_session(db, body, plan.user_id)
+    plan.scheduled_start = ""
+    plan.last_session_id = s.session_id
+    plan.last_started_at = s.started_at
+    await db.commit()
+    return s, body
+
+
+@app.post("/api/plans/{plan_id}/start")
+async def start_plan_now(plan_id: str, db: AsyncSession = Depends(get_db), user: UserModel = Depends(get_current_user)):
+    plan = await get_own_plan(db, plan_id, user)
+    s, body = await start_plan(db, plan)
+    return journey_started_response(s, body)
+
+
+async def start_due_plans():
+    """Auto-start saved journeys whose scheduled time has arrived, and tell the owner's devices."""
+    now = datetime.now(timezone.utc).isoformat()
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(JourneyPlanModel.id).where(JourneyPlanModel.scheduled_start != "",
+                                              JourneyPlanModel.scheduled_start <= now)
+        )
+        due_ids = [row[0] for row in result.all()]
+
+    for plan_id in due_ids:  # own DB session per plan, so one bad plan can't affect the others
+        async with AsyncSessionLocal() as db:
+            plan = (await db.execute(
+                select(JourneyPlanModel).where(JourneyPlanModel.id == plan_id)
+            )).scalar_one_or_none()
+            if not plan or not plan.scheduled_start:
+                continue
+            try:
+                s, body = await start_plan(db, plan)
+            except Exception as exc:
+                print(f"[PLAN] Could not auto-start plan {plan_id}: {exc}")
+                await db.rollback()
+                # Don't retry a broken plan every 10 seconds.
+                await db.execute(update(JourneyPlanModel).where(JourneyPlanModel.id == plan_id)
+                                 .values(scheduled_start=""))
+                await db.commit()
+                continue
+            print(f"[PLAN] Scheduled journey {plan_id} started as session {s.session_id}")
+            asyncio.create_task(send_push_to_user(
+                plan.user_id, "🛡 Journey started",
+                f"Your scheduled journey to {body.destination} has started. "
+                f"First check-in due in {body.check_in_interval_minutes} min.", 0,
+            ))
 
 
 async def trigger_duress(db: AsyncSession, s: SessionModel, message_text: Optional[str] = None) -> str:
@@ -1616,17 +1798,23 @@ async def delete_emergency_number(
     return {"ok": True}
 
 
+def guardian_to_dict(g: UserGuardianModel) -> dict:
+    # A guardian counts as verified once they've confirmed the request themselves — either via
+    # the emailed accept link, or (for linked app users) by accepting in their own account.
+    linked_accepted = bool(g.linked_user_id) and (g.status or "accepted") == "accepted"
+    return {"id": g.id, "name": g.name, "email": g.email or "", "phone": g.phone or "",
+            "linked_user_id": g.linked_user_id or "", "linked_username": g.linked_username or "",
+            "status": g.status or "accepted",
+            "verification": g.verification or "",
+            "verified": g.verification == "verified" or linked_accepted}
+
+
 @app.get("/api/guardians")
 async def list_guardians(db: AsyncSession = Depends(get_db), user: UserModel = Depends(get_current_user)):
     result = await db.execute(
         select(UserGuardianModel).where(UserGuardianModel.user_id == user.id)
     )
-    return [
-        {"id": g.id, "name": g.name, "email": g.email or "", "phone": g.phone or "",
-         "linked_user_id": g.linked_user_id or "", "linked_username": g.linked_username or "",
-         "status": g.status or "accepted"}
-        for g in result.scalars().all()
-    ]
+    return [guardian_to_dict(g) for g in result.scalars().all()]
 
 
 @app.post("/api/guardians")
@@ -1661,8 +1849,172 @@ async def create_guardian(
     )
     db.add(g)
     await db.commit()
-    return {"id": g.id, "name": g.name, "email": g.email, "phone": g.phone,
-            "linked_user_id": linked_user_id, "linked_username": linked_username, "status": status}
+    return guardian_to_dict(g)
+
+
+# ── Guardian email verification ───────────────
+VERIFY_LINK_TTL = timedelta(days=7)
+
+
+async def send_html_email(to: str, subject: str, body_html: str) -> None:
+    """Send one HTML email. Raises if SMTP isn't configured or sending fails."""
+    smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    smtp_port = int(os.getenv("SMTP_PORT", "587"))
+    smtp_user = os.getenv("SMTP_USER", "")
+    smtp_pass = os.getenv("SMTP_PASS", "").replace(" ", "")
+    smtp_from = os.getenv("SMTP_FROM", smtp_user)
+    if not smtp_user or not smtp_pass:
+        raise RuntimeError("Email isn't configured on the server (SMTP_USER / SMTP_PASS)")
+
+    def _send():
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"]    = smtp_from
+        msg["To"]      = to
+        msg.attach(MIMEText(body_html, "html"))
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=20) as srv:
+            srv.ehlo()
+            srv.starttls()
+            srv.login(smtp_user, smtp_pass)
+            srv.sendmail(smtp_user, to, msg.as_string())
+
+    await asyncio.get_running_loop().run_in_executor(None, _send)
+
+
+def verification_email_body(traveler: str, guardian_name: str, link: str) -> str:
+    t, gname = html_lib.escape(traveler), html_lib.escape(guardian_name)
+    return f"""<!DOCTYPE html><html>
+<body style="margin:0;padding:20px;font-family:Arial,sans-serif;background:#0a0d0f;color:#e8eef2;">
+<div style="max-width:520px;margin:0 auto;background:#161b1f;border-radius:12px;overflow:hidden;border:2px solid #1d9bf0;">
+  <div style="background:#111518;padding:20px 24px;border-bottom:1px solid #1f2a30;">
+    <p style="margin:0;font-size:20px;font-weight:bold;color:#00e5a0;">🛡 GUARDIAN ANGEL</p>
+    <p style="margin:4px 0 0;font-size:11px;color:#5a7080;font-family:monospace;letter-spacing:1px;">GUARDIAN VERIFICATION REQUEST</p>
+  </div>
+  <div style="padding:20px 24px;font-size:14px;line-height:1.6;">
+    <p style="margin:0 0 12px;">Hi {gname},</p>
+    <p style="margin:0 0 12px;"><strong>{t}</strong> has added you as a guardian in Guardian Angel, a personal safety app.
+      If they miss a safety check-in during a journey, you may receive alert emails with their last known details.</p>
+    <p style="margin:0 0 20px;">Please confirm whether you agree to be their guardian:</p>
+    <div style="text-align:center;">
+      <a href="{link}" style="display:inline-block;padding:12px 24px;border-radius:8px;background:#1d9bf0;color:#ffffff;font-weight:bold;text-decoration:none;font-size:14px;">Review Request →</a>
+    </div>
+    <p style="margin:20px 0 0;font-size:12px;color:#5a7080;">This link expires in 7 days. If you don't know {t}, you can decline or simply ignore this email.</p>
+  </div>
+</div>
+</body></html>"""
+
+
+@app.post("/api/guardians/{guardian_id}/verify")
+@limiter.limit("5/minute")
+async def request_guardian_verification(
+    request: Request, guardian_id: str, db: AsyncSession = Depends(get_db),
+    user: UserModel = Depends(get_current_user),
+):
+    result = await db.execute(select(UserGuardianModel).where(UserGuardianModel.id == guardian_id))
+    g = result.scalar_one_or_none()
+    if not g:
+        raise HTTPException(404, "Guardian not found")
+    if g.user_id != user.id:
+        raise HTTPException(403, "Not your guardian")
+    if not (g.email or "").strip():
+        raise HTTPException(400, "Add an email address for this guardian before verifying")
+    if g.verification == "verified":
+        raise HTTPException(400, "This guardian is already verified")
+
+    token = secrets.token_urlsafe(32)
+    try:
+        await send_html_email(
+            g.email.strip(),
+            f"🛡 {user.username} wants you as their Guardian Angel",
+            verification_email_body(user.username, g.name, f"{APP_BASE_URL}/verify-guardian/{token}"),
+        )
+    except Exception as exc:
+        print(f"[VERIFY EMAIL ERROR] {exc}")
+        raise HTTPException(502, f"Couldn't send the verification email: {exc}")
+
+    g.verification   = "pending"
+    g.verify_token   = token
+    g.verify_sent_at = datetime.now(timezone.utc).isoformat()
+    await db.commit()
+    return guardian_to_dict(g)
+
+
+def verify_page(title: str, message: str, body_extra: str = "", color: str = "#1d9bf0") -> HTMLResponse:
+    return HTMLResponse(f"""<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Guardian Verification</title>
+<style>
+  body{{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;
+       background:#0a0d0f;color:#e8eef2;font-family:Arial,sans-serif;}}
+  .card{{max-width:440px;width:100%;background:#161b1f;border:2px solid {color};border-radius:12px;padding:24px;}}
+  h1{{font-size:20px;margin:0 0 12px;color:{color};}}
+  p{{font-size:14px;line-height:1.6;margin:0 0 12px;}}
+  .row{{display:flex;gap:10px;margin-top:20px;}}
+  button{{flex:1;padding:12px;border-radius:8px;border:none;font-size:14px;font-weight:bold;cursor:pointer;}}
+  .accept{{background:#1d9bf0;color:#fff;}} .decline{{background:transparent;color:#ff4757;border:1px solid #ff4757;}}
+</style></head><body><div class="card">
+  <p style="font-size:12px;color:#5a7080;letter-spacing:1px;margin-bottom:16px;">🛡 GUARDIAN ANGEL</p>
+  <h1>{title}</h1><p>{message}</p>{body_extra}
+</div></body></html>""")
+
+
+async def _guardian_for_token(db: AsyncSession, token: str) -> Optional[UserGuardianModel]:
+    if not token:
+        return None
+    result = await db.execute(select(UserGuardianModel).where(UserGuardianModel.verify_token == token))
+    g = result.scalar_one_or_none()
+    if not g or g.verification != "pending":
+        return None
+    try:
+        if datetime.now(timezone.utc) - datetime.fromisoformat(g.verify_sent_at) > VERIFY_LINK_TTL:
+            return None
+    except (TypeError, ValueError):
+        return None
+    return g
+
+
+INVALID_LINK_MSG = ("This verification link is invalid, has already been used, or has expired. "
+                    "Ask the person who added you to send a new one.")
+
+
+@app.get("/verify-guardian/{token}", response_class=HTMLResponse)
+@limiter.limit("30/minute")
+async def verify_guardian_page(request: Request, token: str, db: AsyncSession = Depends(get_db)):
+    # GET only shows the choice — email link scanners prefetch URLs, so the answer must be a POST.
+    g = await _guardian_for_token(db, token)
+    if not g:
+        return verify_page("Link not valid", INVALID_LINK_MSG, color="#5a7080")
+    result = await db.execute(select(UserModel).where(UserModel.id == g.user_id))
+    traveler = result.scalar_one_or_none()
+    t = html_lib.escape(traveler.username if traveler else "Someone")
+    tok = html_lib.escape(token)
+    buttons = f"""<form method="post" class="row">
+      <button class="accept" formaction="/verify-guardian/{tok}/accept">✓ Accept</button>
+      <button class="decline" formaction="/verify-guardian/{tok}/decline">Decline</button>
+    </form>"""
+    return verify_page(
+        "Be a Guardian?",
+        f"<strong>{t}</strong> added you (<strong>{html_lib.escape(g.name)}</strong>) as a guardian. "
+        "If they miss a safety check-in, you may get alert emails with their location and trip details.",
+        buttons,
+    )
+
+
+@app.post("/verify-guardian/{token}/{action}", response_class=HTMLResponse)
+@limiter.limit("30/minute")
+async def verify_guardian_respond(request: Request, token: str, action: str, db: AsyncSession = Depends(get_db)):
+    if action not in ("accept", "decline"):
+        raise HTTPException(404, "Not found")
+    g = await _guardian_for_token(db, token)
+    if not g:
+        return verify_page("Link not valid", INVALID_LINK_MSG, color="#5a7080")
+    g.verification = "verified" if action == "accept" else "declined"
+    g.verify_token = ""
+    await db.commit()
+    if action == "accept":
+        return verify_page("You're verified ✓", "Thank you! You're now a verified guardian. You can close this page.")
+    return verify_page("Request declined", "You won't be listed as a verified guardian. You can close this page.",
+                       color="#ff4757")
 
 
 @app.delete("/api/guardians/{guardian_id}")

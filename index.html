@@ -102,6 +102,12 @@ select option{background:var(--card);}
 .jc-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
 .jc-dest{font-size:14px;font-weight:700;flex:1;}
 .jc-meta{font-size:11px;color:var(--muted);font-family:var(--mono);}
+.plan-card .jc-actions{display:flex;gap:8px;margin-top:10px;}
+.plan-card .jc-actions .btn{flex:1;padding:9px;font-size:12px;}
+.chip.blue{color:#6ec6ff;border-color:#1d4a6b;background:#0d1b26;}
+.edit-plan-banner{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;margin-bottom:14px;border-radius:10px;border:1px solid #1d4a6b;background:#0d1b26;font-size:12px;color:#6ec6ff;}
+.edit-plan-banner button{background:transparent;border:1px solid var(--accent2);color:var(--accent2);border-radius:6px;padding:5px 10px;font-size:11px;font-family:var(--mono);cursor:pointer;}
+input[type="datetime-local"]{color-scheme:dark;}
 .jc-date{font-size:10px;color:var(--muted);font-family:var(--mono);margin-top:3px;}
 
 /* ── INTERVAL GRID ── */
@@ -184,6 +190,18 @@ select option{background:var(--card);}
 .g-info{flex:1;min-width:0;}
 .g-name{font-size:13px;font-weight:600;}
 .g-contact{font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:1px;}
+.verified-badge{display:inline-block;width:15px;height:15px;vertical-align:-2px;margin-left:3px;flex-shrink:0;}
+.btn-verify{padding:6px 12px;border-radius:6px;border:1px solid #1d9bf0;background:transparent;color:#1d9bf0;font-size:11px;font-family:var(--mono);cursor:pointer;white-space:nowrap;}
+.btn-verify:disabled{opacity:.5;cursor:default;}
+.progress-card{position:sticky;top:0;z-index:5;box-shadow:0 6px 16px rgba(0,0,0,.45);}
+.progress-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.progress-pct{font-family:var(--mono);font-size:15px;font-weight:700;}
+.progress-track{height:8px;border-radius:4px;background:var(--surface);border:1px solid var(--border);overflow:hidden;}
+.progress-fill{height:100%;width:0;border-radius:4px;transition:width .4s ease,background-color .4s ease;}
+.progress-tips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+.progress-tip{padding:4px 10px;border-radius:20px;font-size:11px;background:var(--surface);border:1px dashed var(--border);color:var(--text);cursor:pointer;font-family:var(--sans);}
+.progress-tip b{color:var(--accent);font-family:var(--mono);font-weight:700;}
+.progress-done{font-size:12px;color:var(--accent);}
 .g-remove{cursor:pointer;color:var(--accent2);font-size:16px;padding:4px;flex-shrink:0;}
 .g-check{width:18px;height:18px;border-radius:4px;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all .15s;}
 .g-check.checked{background:var(--accent);border-color:var(--accent);}
@@ -340,7 +358,14 @@ select option{background:var(--card);}
     </div>
 
     <div class="spacer"></div>
-    <button class="btn btn-primary" onclick="showView('create')">+ New Journey</button>
+    <button class="btn btn-primary" onclick="newJourney()">+ New Journey</button>
+
+    <div class="spacer" style="height:24px;"></div>
+    <div class="section-title">Saved Journeys</div>
+    <div class="mode-hint">Plan a trip ahead of time — start it with one tap when you leave, or give it a <strong>start date</strong> and it starts automatically.</div>
+    <div id="home-plan-list">
+      <div class="empty-state">No saved journeys.<br/>Fill in a new journey and tap <strong>Save Journey</strong>.</div>
+    </div>
 
     <div class="spacer" style="height:24px;"></div>
     <div class="section-title">Daily Usage</div>
@@ -356,6 +381,17 @@ select option{background:var(--card);}
   <!-- CREATE VIEW: journey setup form -->
   <div id="pnl-create" style="display:none">
     <div class="nav-back" onclick="showView('home')">← Back to Home</div>
+
+    <div class="edit-plan-banner" id="edit-plan-banner" style="display:none;">
+      <span>✏️ Editing saved journey</span>
+      <button type="button" onclick="deleteEditingPlan()">Delete</button>
+    </div>
+
+    <div class="card progress-card" id="pp-trip">
+      <div class="progress-head"><span class="card-label" style="margin:0;">🛡 Safety Readiness</span><span class="progress-pct" id="pp-trip-pct">0%</span></div>
+      <div class="progress-track"><div class="progress-fill" id="pp-trip-fill"></div></div>
+      <div class="progress-tips" id="pp-trip-tips"></div>
+    </div>
 
     <div class="card">
       <div class="card-label">Journey Details</div>
@@ -459,12 +495,26 @@ select option{background:var(--card);}
       </div>
     </div>
 
-    <button class="btn btn-primary" onclick="startJourney()">🛡 Begin Journey</button>
+    <div class="card">
+      <div class="card-label">Start Time <span style="color:var(--muted);font-weight:400;text-transform:none;">(optional — for saved journeys)</span></div>
+      <input id="inp-start-at" type="datetime-local"/>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5;">Set a date and time, then tap <strong>Save Journey</strong> — monitoring starts automatically then and you'll get a notification. Leave empty to start it yourself later.</div>
+    </div>
+
+    <button class="btn btn-primary" id="btn-begin-journey" onclick="startJourney()">🛡 Begin Journey Now</button>
+    <div class="spacer" style="height:10px;"></div>
+    <button class="btn btn-ghost" id="btn-save-plan" onclick="saveJourneyPlan()">💾 Save Journey</button>
   </div>
 
   <!-- CREATE DAILY VIEW: always-on daily usage setup -->
   <div id="pnl-create-daily" style="display:none">
     <div class="nav-back" onclick="showView('home')">← Back to Home</div>
+
+    <div class="card progress-card" id="pp-daily">
+      <div class="progress-head"><span class="card-label" style="margin:0;">🛡 Safety Readiness</span><span class="progress-pct" id="pp-daily-pct">0%</span></div>
+      <div class="progress-track"><div class="progress-fill" id="pp-daily-fill"></div></div>
+      <div class="progress-tips" id="pp-daily-tips"></div>
+    </div>
 
     <div class="card">
       <div class="card-label">Active Windows — alerts run daily during these times</div>
@@ -695,6 +745,12 @@ select option{background:var(--card);}
 <div id="tab-profile" class="panel">
   <div class="section-title">Your Profile</div>
 
+  <div class="card progress-card" id="pp-profile">
+      <div class="progress-head"><span class="card-label" style="margin:0;">🛡 Safety Readiness</span><span class="progress-pct" id="pp-profile-pct">0%</span></div>
+      <div class="progress-track"><div class="progress-fill" id="pp-profile-fill"></div></div>
+      <div class="progress-tips" id="pp-profile-tips"></div>
+    </div>
+
   <div class="card" style="text-align:center;">
     <input type="file" id="profile-photo-input" accept="image/*" style="display:none" onchange="handleProfilePhotoSelected(event)"/>
     <div class="profile-avatar" id="profile-avatar" onclick="document.getElementById('profile-photo-input').click()">?</div>
@@ -843,6 +899,25 @@ function esc(str) {
   return String(str)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// Blue "verified" rosette, like the social-media verified mark.
+const VERIFIED_BADGE = (() => {
+  const pts = [];
+  for (let i = 0; i < 24; i++) {
+    const a = i * Math.PI / 12 - Math.PI / 2, rad = i % 2 ? 10.2 : 12;
+    pts.push(`${(12 + rad * Math.cos(a)).toFixed(2)},${(12 + rad * Math.sin(a)).toFixed(2)}`);
+  }
+  return `<svg class="verified-badge" viewBox="-1 -1 26 26" role="img" aria-label="Verified guardian"><title>Verified guardian</title>` +
+    `<polygon points="${pts.join(' ')}" fill="#1d9bf0" stroke="#1d9bf0" stroke-width="1.6" stroke-linejoin="round"/>` +
+    `<path d="M7.3 12.4l3.1 3.1 6.3-6.6" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+})();
+function verifiedMark(g) { return g && g.verified ? VERIFIED_BADGE : ''; }
+const progressTipActions = {};  // readiness-tip click targets, keyed by form (see renderProgress)
+// Journey picker entries are copies — read verification from the saved record so it stays current.
+function isGuardianVerified(g) {
+  const saved = g.id ? savedGuardians.find(s => s.id === g.id) : null;
+  return !!(saved || g).verified;
 }
 
 let currentSession   = null;
@@ -1051,8 +1126,8 @@ function showView(view) {
   document.getElementById('pnl-create-daily').style.display = view === 'create-daily' ? 'block' : 'none';
   document.getElementById('pnl-active').style.display       = view === 'active'       ? 'block' : 'none';
   if (view === 'create' || view === 'create-daily') renderCreateGuardians();
-  if (view === 'create') { resetCompanionsForm(); populateCountryDatalist(); }
-  if (view === 'create-daily') { resetDailyWindowsForm(); resetDayPicker(); }
+  if (view === 'create') { resetCompanionsForm(); populateCountryDatalist(); updateTripProgress(); }
+  if (view === 'create-daily') { resetDailyWindowsForm(); resetDayPicker(); updateDailyProgress(); }
   if (view === 'home') loadHomeJourneys();
 }
 
@@ -1061,8 +1136,8 @@ let companionSeq = 0;
 function companionRowHtml(id, name, contact) {
   return `
     <div class="window-row" data-cid="${id}">
-      <div class="field"><label>Name</label><input id="comp-name-${id}" placeholder="Name" value="${name || ''}"/></div>
-      <div class="field"><label>Contact</label><input id="comp-contact-${id}" placeholder="Phone or email" value="${contact || ''}"/></div>
+      <div class="field"><label>Name</label><input id="comp-name-${id}" placeholder="Name" value="${esc(name)}"/></div>
+      <div class="field"><label>Contact</label><input id="comp-contact-${id}" placeholder="Phone or email" value="${esc(contact)}"/></div>
       <span class="g-remove" onclick="removeCompanionRow(${id})">✕</span>
     </div>`;
 }
@@ -1073,6 +1148,7 @@ function addCompanionRow(name, contact) {
 function removeCompanionRow(id) {
   const row = document.querySelector(`#companion-list [data-cid="${id}"]`);
   if (row) row.remove();
+  updateTripProgress();
 }
 function resetCompanionsForm() {
   document.getElementById('companion-list').innerHTML = '';
@@ -1294,6 +1370,7 @@ function statusChipClass(s) {
 
 async function loadHomeJourneys() {
   if (!currentUser) return;
+  loadPlans();
   try {
     const list   = await api('/api/sessions');
     const trips  = list.filter(s => s.session_type !== 'DAILY');
@@ -1395,6 +1472,7 @@ function renderSavedGuardianList() {
   const el = document.getElementById('saved-guardian-list');
   if (!savedGuardians.length) {
     el.innerHTML = '<div class="empty-state">No guardians saved yet.<br/>Add guardians below to reuse them across journeys.</div>';
+    updateProfileProgress();
     return;
   }
   el.innerHTML = savedGuardians.map(g => {
@@ -1404,17 +1482,40 @@ function renderSavedGuardianList() {
       const [cls, label] = badges[g.status] || badges.accepted;
       linkBadge = `<span class="chip ${cls}" style="margin-left:4px;">${label}</span>`;
     }
+    let verifyChip = '';
+    if (!g.verified && g.verification === 'pending')  verifyChip = `<span class="chip gray" style="margin-left:4px;">✉ Awaiting reply</span>`;
+    if (!g.verified && g.verification === 'declined') verifyChip = `<span class="chip red" style="margin-left:4px;">Verification declined</span>`;
+    const verifyBtn = g.email && !g.verified
+      ? `<button class="btn-verify" id="verify-btn-${esc(g.id)}" onclick="verifyGuardian('${esc(g.id)}')">${g.verification === 'pending' ? 'Resend' : 'Verify'}</button>`
+      : '';
     return `
     <div class="guardian-item">
       <div class="g-avatar">${esc(g.name[0].toUpperCase())}</div>
       <div class="g-info">
-        <div class="g-name">${esc(g.name)} ${linkBadge}</div>
+        <div class="g-name">${esc(g.name)}${verifiedMark(g)} ${linkBadge}${verifyChip}</div>
         <div class="g-contact">${esc([g.email, g.phone].filter(Boolean).join(' · ')) || '—'}</div>
       </div>
+      ${verifyBtn}
       ${g.email ? `<button class="btn-test-email" onclick="sendTestEmail('${esc(g.email)}')">Test</button>` : ''}
       <span class="g-remove" onclick="deleteSavedGuardian('${esc(g.id)}')">✕</span>
     </div>`;
   }).join('');
+  updateProfileProgress();
+}
+
+async function verifyGuardian(id) {
+  const btn = document.getElementById('verify-btn-' + id);
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+  try {
+    const updated = await api(`/api/guardians/${id}/verify`, 'POST');
+    savedGuardians = savedGuardians.map(g => g.id === id ? updated : g);
+    renderSavedGuardianList();
+    renderCreateGuardians();
+    toast(`Verification email sent to ${updated.email} ✓`);
+  } catch(e) {
+    toast(e.message || 'Could not send verification email', 'err');
+    renderSavedGuardianList();
+  }
 }
 
 async function saveNewGuardian() {
@@ -1458,6 +1559,7 @@ function renderProfileAvatar() {
     el.style.backgroundImage = '';
     el.textContent = currentUser ? currentUser.username[0].toUpperCase() : '?';
   }
+  updateProfileProgress();
 }
 
 async function loadProfile() {
@@ -1474,6 +1576,7 @@ async function loadProfile() {
     profilePhotoDataUrl = p.photo || '';
     renderProfileAvatar();
   } catch(e) { toast(e.message, 'err'); }
+  loadSavedGuardians();  // guardians count toward the profile's readiness score
 }
 
 function handleProfilePhotoSelected(event) {
@@ -1643,7 +1746,7 @@ function renderCreateGuardians() {
           <div class="g-check ${checked ? 'checked' : ''}" id="gcheck-${esc(g.id)}"></div>
           <div class="g-avatar">${esc(g.name[0].toUpperCase())}</div>
           <div class="g-info">
-            <div class="g-name">${esc(g.name)} ${g.linked_user_id ? `<span class="chip green" style="margin-left:4px;">🔗</span>` : ''}</div>
+            <div class="g-name">${esc(g.name)}${verifiedMark(g)} ${g.linked_user_id ? `<span class="chip green" style="margin-left:4px;">🔗</span>` : ''}</div>
             <div class="g-contact">${esc([g.email, g.phone].filter(Boolean).join(' · ')) || '—'}</div>
           </div>
         </div>`;
@@ -1664,6 +1767,8 @@ function renderCreateGuardians() {
   }
 
   document.querySelectorAll('.guardian-picker-list').forEach(el => el.innerHTML = html);
+  updateTripProgress();
+  updateDailyProgress();
 }
 
 function toggleJourneyGuardian(id) {
@@ -1705,10 +1810,11 @@ async function addAndSaveGuardian(suffix) {
 }
 
 // ── JOURNEY ───────────────────────────────
-async function startJourney() {
+// Reads the trip form into a /api/journey/start payload (null + toast if required fields are missing).
+function collectTripPayload() {
   const name = document.getElementById('inp-name').value.trim();
   const dest = document.getElementById('inp-dest').value.trim();
-  if (!name || !dest) { toast('Name and destination required', 'err'); return; }
+  if (!name || !dest) { toast('Name and destination required', 'err'); return null; }
 
   const interval0 = parseInt(document.getElementById('inp-interval-0').value);
   const interval1 = parseInt(document.getElementById('inp-interval-1').value);
@@ -1730,46 +1836,214 @@ async function startJourney() {
   const country    = document.getElementById('inp-country').value.trim();
   const companions = collectCompanions();
 
+  return {
+    user_name: name,
+    destination: dest,
+    check_in_interval_minutes: interval0,
+    escalation_intervals: { '1': interval1, '2': interval2, '3': interval3 },
+    guardians: guardianPayload,
+    safe_code: safeCode,
+    duress_code: duressCode,
+    maps_link: mapsLink,
+    latitude: latitude,
+    longitude: longitude,
+    route: route,
+    communication_method: commMethod,
+    country: country,
+    companions: companions,
+  };
+}
+
+async function startJourney() {
+  const payload = collectTripPayload();
+  if (!payload) return;
   try {
-    const res = await api('/api/journey/start', 'POST', {
-      user_name: name,
-      destination: dest,
-      check_in_interval_minutes: interval0,
-      escalation_intervals: { '1': interval1, '2': interval2, '3': interval3 },
-      guardians: guardianPayload,
-      safe_code: safeCode,
-      duress_code: duressCode,
-      maps_link: mapsLink,
-      latitude: latitude,
-      longitude: longitude,
-      route: route,
-      communication_method: commMethod,
-      country: country,
-      companions: companions,
-    });
+    let res;
+    if (editingPlanId) {
+      // Starting an opened saved journey: keep any edits, then start from the plan.
+      await api(`/api/plans/${editingPlanId}`, 'PUT', { journey: payload, scheduled_start: '' });
+      res = await api(`/api/plans/${editingPlanId}/start`, 'POST');
+      editingPlanId = null;
+    } else {
+      res = await api('/api/journey/start', 'POST', payload);
+    }
+    enterStartedJourney(res, payload);
+  } catch(e) { toast(e.message, 'err'); }
+}
 
-    currentSession = {
-      id: res.session_id, name, dest,
-      interval: interval0, safeCode, duressCode,
-      nextCheckin: res.next_checkin,
-      type: 'TRIP', status: 'ACTIVE', windows: [],
-      mapsLink, latitude, longitude, route, commMethod, companions,
-      country, emergencyNumber: res.emergency_number || '',
-    };
-    lastLevel = 0;
-    lastMessageCount = 0;
-    journeyGuardians = [];
+function enterStartedJourney(res, j) {
+  currentSession = {
+    id: res.session_id, name: j.user_name, dest: j.destination,
+    interval: j.check_in_interval_minutes, safeCode: j.safe_code, duressCode: j.duress_code,
+    nextCheckin: res.next_checkin,
+    type: 'TRIP', status: 'ACTIVE', windows: [],
+    mapsLink: j.maps_link, latitude: j.latitude, longitude: j.longitude, route: j.route,
+    commMethod: j.communication_method, companions: j.companions,
+    country: j.country, emergencyNumber: res.emergency_number || '',
+  };
+  lastLevel = 0;
+  lastMessageCount = 0;
+  journeyGuardians = [];
 
-    document.getElementById('ci-sid').value     = res.session_id;
-    document.getElementById('cf-sid').value     = res.session_id;
-    document.getElementById('log-filter').value = res.session_id;
+  document.getElementById('ci-sid').value     = res.session_id;
+  document.getElementById('cf-sid').value     = res.session_id;
+  document.getElementById('log-filter').value = res.session_id;
 
-    showView('active');
-    showActivePanel();
-    loadMessages(); // fresh session — clears any previous journey's thread immediately instead of waiting on the next poll
-    startPolling();
-    updateAlertIndicator(0, false);
-    toast('Journey started! Stay safe 🛡');
+  showView('active');
+  showActivePanel();
+  loadMessages(); // fresh session — clears any previous journey's thread immediately instead of waiting on the next poll
+  startPolling();
+  updateAlertIndicator(0, false);
+  toast('Journey started! Stay safe 🛡');
+}
+
+// ── SAVED JOURNEYS (plans) ────────────────
+let savedPlans    = [];
+let editingPlanId = null;  // set while the create form is showing an opened saved journey
+
+function toLocalInputValue(iso) {
+  const d = new Date(iso);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+function formatPlanTime(iso) {
+  return new Date(iso).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function newJourney() {
+  editingPlanId = null;
+  showView('create');
+  fillTripForm(null);
+}
+
+function setTripFormMode() {
+  document.getElementById('edit-plan-banner').style.display = editingPlanId ? 'flex' : 'none';
+  document.getElementById('btn-save-plan').textContent = editingPlanId ? '💾 Save Changes' : '💾 Save Journey';
+  document.getElementById('inp-start-at').min = toLocalInputValue(new Date().toISOString());
+}
+
+// Fill (or, with null, clear) the trip form. Saved guardians are re-selected by matching
+// identity, since a plan stores the guardian contact details rather than saved-list ids.
+function fillTripForm(j, scheduledStart) {
+  j = j || {};
+  const set = (id, v) => { document.getElementById(id).value = v ?? ''; };
+  set('inp-name', j.user_name || (currentUser ? currentUser.username : ''));
+  set('inp-dest', j.destination);
+  set('inp-country', j.country);
+  set('inp-maps-link', j.maps_link);
+  set('inp-lat', j.latitude);
+  set('inp-lng', j.longitude);
+  set('inp-route', j.route);
+  set('inp-comm-method', j.communication_method);
+  set('inp-interval-0', String(j.check_in_interval_minutes || 30));
+  const esc_ = j.escalation_intervals || {};
+  ['1', '2', '3'].forEach(k => set('inp-interval-' + k, String(esc_[k] || 1)));
+  const customSafe   = j.safe_code && j.safe_code !== 'SAFE123' ? j.safe_code : '';
+  const customDuress = j.duress_code && j.duress_code !== 'HELP999' ? j.duress_code : '';
+  set('inp-safe', customSafe);
+  set('inp-duress', customDuress);
+  document.getElementById('disp-safe').textContent   = customSafe || 'SAFE123';
+  document.getElementById('disp-duress').textContent = customDuress || 'HELP999';
+  set('inp-start-at', scheduledStart ? toLocalInputValue(scheduledStart) : '');
+
+  resetCompanionsForm();
+  (j.companions || []).forEach(c => addCompanionRow(c.name, c.contact));
+
+  journeyGuardians = (j.guardians || []).map(g => {
+    const match = savedGuardians.find(sg =>
+      (g.linked_user_id && sg.linked_user_id === g.linked_user_id) ||
+      (g.email && sg.email === g.email && sg.name === g.name) ||
+      (!g.email && !sg.email && sg.name === g.name && (sg.phone || '') === (g.contact || '')));
+    return match ? { ...match } : { name: g.name, phone: g.contact || '', email: g.email || '', linked_user_id: g.linked_user_id || '' };
+  });
+  renderCreateGuardians();
+  updateEmergencyNumberHint();
+  setTripFormMode();
+  updateTripProgress();
+}
+
+async function loadPlans() {
+  if (!currentUser) return;
+  try {
+    savedPlans = await api('/api/plans');
+    renderPlans();
+  } catch(e) {}
+}
+
+function renderPlans() {
+  const el = document.getElementById('home-plan-list');
+  if (!savedPlans.length) {
+    el.innerHTML = '<div class="empty-state">No saved journeys.<br/>Fill in a new journey and tap <strong>Save Journey</strong>.</div>';
+    return;
+  }
+  el.innerHTML = savedPlans.map(p => {
+    const j = p.journey;
+    const when = p.scheduled_start
+      ? `<span class="chip blue">🗓 ${esc(formatPlanTime(p.scheduled_start))}</span>`
+      : `<span class="chip">DRAFT</span>`;
+    const gCount = (j.guardians || []).length;
+    const meta = [`${gCount} guardian${gCount === 1 ? '' : 's'}`, `check-in every ${j.check_in_interval_minutes} min`];
+    const last = p.last_started_at ? `Last started ${new Date(p.last_started_at).toLocaleDateString(undefined, {month:'short',day:'numeric'})}` : 'Never started';
+    return `
+      <div class="journey-card plan-card" onclick="editPlan('${esc(p.id)}')">
+        <div class="jc-row">
+          <div class="jc-dest">→ ${esc(j.destination)}</div>
+          ${when}
+        </div>
+        <div class="jc-meta">${esc(meta.join(' · '))}</div>
+        <div class="jc-date">${esc(last)}</div>
+        <div class="jc-actions">
+          <button class="btn btn-primary" onclick="event.stopPropagation(); startPlan('${esc(p.id)}')">▶ Start Now</button>
+          <button class="btn btn-ghost" onclick="event.stopPropagation(); editPlan('${esc(p.id)}')">Open</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function editPlan(id) {
+  const plan = savedPlans.find(p => p.id === id);
+  if (!plan) return;
+  editingPlanId = id;
+  showView('create');
+  fillTripForm(plan.journey, plan.scheduled_start);
+  window.scrollTo(0, 0);
+}
+
+async function startPlan(id) {
+  const plan = savedPlans.find(p => p.id === id);
+  if (!plan) return;
+  if (!confirm(`Start your journey to "${plan.journey.destination}" now? Your check-in timer begins immediately.`)) return;
+  try {
+    const res = await api(`/api/plans/${id}/start`, 'POST');
+    editingPlanId = null;
+    enterStartedJourney(res, plan.journey);
+    loadPlans();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+async function saveJourneyPlan() {
+  if (!currentUser) { toast('Sign in to save journeys', 'err'); return; }
+  const payload = collectTripPayload();
+  if (!payload) return;
+  const startAt = document.getElementById('inp-start-at').value;
+  const scheduled_start = startAt ? new Date(startAt).toISOString() : '';
+  try {
+    const body = { journey: payload, scheduled_start };
+    const plan = editingPlanId
+      ? await api(`/api/plans/${editingPlanId}`, 'PUT', body)
+      : await api('/api/plans', 'POST', body);
+    editingPlanId = null;
+    toast(plan.scheduled_start ? `Saved — starts ${formatPlanTime(plan.scheduled_start)} 🗓` : 'Journey saved 💾');
+    showView('home');
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+async function deleteEditingPlan() {
+  if (!editingPlanId || !confirm('Delete this saved journey?')) return;
+  try {
+    await api(`/api/plans/${editingPlanId}`, 'DELETE');
+    editingPlanId = null;
+    toast('Saved journey deleted');
+    showView('home');
   } catch(e) { toast(e.message, 'err'); }
 }
 
@@ -2252,6 +2526,94 @@ async function sendTestEmail(email) {
   } catch(e) { toast(e.message || 'Test email failed', 'err'); }
 }
 
+// ── SAFETY READINESS PROGRESS ─────────────
+// Each item adds its weight (weights per form sum to 100) once filled in. Unfilled items
+// are offered as tips, biggest gain first; tapping one jumps to the field that fixes it.
+function val(id) { return (document.getElementById(id)?.value || '').trim(); }
+function customCodes(safeId, duressId) {
+  const safe = val(safeId), duress = val(duressId);
+  return !!safe && !!duress && safe !== 'SAFE123' && duress !== 'HELP999' && safe !== duress;
+}
+function goGuardiansTab() { switchTab('guardians'); }
+
+function profileReadinessItems() {
+  return [
+    { w: 10, label: 'Add a photo',           done: !!profilePhotoDataUrl,        go: () => document.getElementById('profile-photo-input').click() },
+    { w: 10, label: 'Add your email',        done: !!val('pf-email'),            go: 'pf-email' },
+    { w: 15, label: 'Add your phone',        done: !!val('pf-phone'),            go: 'pf-phone' },
+    { w: 10, label: 'Add your address',      done: !!val('pf-address'),          go: 'pf-address' },
+    { w: 5,  label: 'Add date of birth',     done: !!val('pf-dob'),              go: 'pf-dob' },
+    { w: 10, label: 'Add blood type',        done: !!val('pf-blood-type'),       go: 'pf-blood-type' },
+    { w: 10, label: 'Add medical notes',     done: !!val('pf-medical-notes'),    go: 'pf-medical-notes' },
+    { w: 20, label: 'Save a guardian',       done: savedGuardians.length > 0,    go: goGuardiansTab },
+    { w: 10, label: 'Verify a guardian',     done: savedGuardians.some(g => g.verified), go: goGuardiansTab },
+  ];
+}
+
+function tripReadinessItems() {
+  return [
+    { w: 10, label: 'Add destination',          done: !!val('inp-dest'),        go: 'inp-dest' },
+    { w: 10, label: 'Add destination country',  done: !!val('inp-country'),     go: 'inp-country' },
+    { w: 10, label: 'Add Google Maps link',     done: !!val('inp-maps-link'),   go: 'inp-maps-link' },
+    { w: 10, label: 'Add coordinates',          done: !!val('inp-lat') && !!val('inp-lng'), go: val('inp-lat') ? 'inp-lng' : 'inp-lat' },
+    { w: 10, label: 'Describe your route',      done: !!val('inp-route'),       go: 'inp-route' },
+    { w: 10, label: 'Add communication method', done: !!val('inp-comm-method'), go: 'inp-comm-method' },
+    { w: 5,  label: 'Add a travel companion',   done: collectCompanions().length > 0,
+      go: () => { if (!document.querySelector('#companion-list .window-row')) addCompanionRow(); focusField(document.querySelector('#companion-list input')); } },
+    { w: 20, label: 'Add a guardian',           done: journeyGuardians.length > 0, go: 'inp-gname' },
+    { w: 10, label: 'Include a verified guardian', done: journeyGuardians.some(isGuardianVerified), go: 'create-guardian-list' },
+    { w: 5,  label: 'Set your own codes',       done: customCodes('inp-safe', 'inp-duress'), go: 'inp-safe' },
+  ];
+}
+
+function dailyReadinessItems() {
+  return [
+    { w: 40, label: 'Add a guardian',              done: journeyGuardians.length > 0, go: 'inp-gname-daily' },
+    { w: 30, label: 'Include a verified guardian', done: journeyGuardians.some(isGuardianVerified), go: 'create-guardian-list-daily' },
+    { w: 30, label: 'Set your own codes',          done: customCodes('inp-daily-safe', 'inp-daily-duress'), go: 'inp-daily-safe' },
+  ];
+}
+
+function focusField(el) {
+  if (typeof el === 'string') el = document.getElementById(el);
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (el.focus) setTimeout(() => el.focus({ preventScroll: true }), 300);
+}
+
+function renderProgress(key, items) {
+  const pct = Math.min(100, items.reduce((sum, it) => sum + (it.done ? it.w : 0), 0));
+  const fill = document.getElementById(`pp-${key}-fill`);
+  if (!fill) return;
+  const color = pct >= 80 ? 'var(--accent)' : pct >= 50 ? 'var(--accent3)' : 'var(--accent2)';
+  fill.style.width = pct + '%';
+  fill.style.backgroundColor = color;
+  const pctEl = document.getElementById(`pp-${key}-pct`);
+  pctEl.textContent = pct + '%';
+  pctEl.style.color = color;
+
+  const todo = items.filter(it => !it.done).sort((a, b) => b.w - a.w).slice(0, 3);
+  progressTipActions[key] = todo.map(it => it.go);
+  document.getElementById(`pp-${key}-tips`).innerHTML = todo.length
+    ? todo.map((it, i) => `<button type="button" class="progress-tip" onclick="runProgressTip('${key}', ${i})"><b>+${it.w}%</b> ${esc(it.label)}</button>`).join('')
+    : '<div class="progress-done">✓ Fully prepared — everything that helps keep you safe is filled in.</div>';
+}
+function runProgressTip(key, i) {
+  const go = (progressTipActions[key] || [])[i];
+  if (typeof go === 'function') go(); else focusField(go);
+}
+
+function updateProfileProgress() { renderProgress('profile', profileReadinessItems()); }
+function updateTripProgress()    { renderProgress('trip', tripReadinessItems()); }
+function updateDailyProgress()   { renderProgress('daily', dailyReadinessItems()); }
+
+[['tab-profile', updateProfileProgress], ['pnl-create', updateTripProgress], ['pnl-create-daily', updateDailyProgress]]
+  .forEach(([id, fn]) => {
+    const el = document.getElementById(id);
+    el.addEventListener('input', fn);
+    el.addEventListener('change', fn);
+  });
+
 // ── INIT ──────────────────────────────────
 (async function init() {
   registerServiceWorker();  // register SW as early as possible
@@ -2264,6 +2626,9 @@ async function sendTestEmail(email) {
     sessionStorage.removeItem('ga_user');
   }
   setInterval(() => { if (document.querySelector('#tab-log.active')) loadLog(); }, 8000);
+  setInterval(() => {
+    if (document.querySelector('#tab-home.active') && document.getElementById('pnl-home').style.display !== 'none') loadHomeJourneys();
+  }, 30000);
   setInterval(() => { if (currentInboxSessionId && document.getElementById('pnl-inbox-chat').style.display !== 'none') loadInboxMessages(); }, 8000);
 })();
 </script>
