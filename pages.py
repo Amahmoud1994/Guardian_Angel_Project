@@ -8,7 +8,7 @@ before a public launch, and keep LEGAL_UPDATED in sync when the wording changes.
 import html
 import os
 
-LEGAL_UPDATED = "October 7, 2026"
+LEGAL_UPDATED = "October 8, 2026"
 
 
 def operator_name() -> str:
@@ -75,6 +75,12 @@ collect, why, and the choices you have. Questions: {_contact()}.</p>
   <li><strong>Technical:</strong> push-notification tokens, app version, device/browser type, and error reports
       used to fix crashes.</li>
 </ul>
+
+<h2>Beta tester applications</h2>
+<p>If you apply to test the app at <a href="/beta">/beta</a>, we collect your first name, email, country, phone type
+and your answers to the application questions. We use them only to choose testers, invite them to the Google Play
+test and contact them about the beta, and we delete applications within 3 months of the beta ending (or sooner on
+request). Testers are added to Google Play by email so Google can give them access.</p>
 
 <h2>Why we use it</h2>
 <ul>

@@ -124,6 +124,8 @@ You don't need a mailbox; free forwarding is enough:
 
 ## 6. Run the beta (3–4 weeks)
 
+- **Recruit:** post the messages from [store/BETA_RECRUITING.md](store/BETA_RECRUITING.md) linking to https://guardianangel.at/beta, then shortlist, add emails to Play Console and send invites from **Monitor → Beta Applicants**.
+
 - Send testers the welcome email and survey from [store/PLAY_LISTING.md](store/PLAY_LISTING.md).
 - Read feedback in the **Monitor tab → Tester Feedback** (it's also emailed to `FEEDBACK_EMAIL`).
 - Ship fixes weekly. App changes are just a Render deploy; testers get them automatically, with no new Play upload.

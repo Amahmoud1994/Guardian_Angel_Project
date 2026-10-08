@@ -200,6 +200,20 @@ input[type="datetime-local"]{color-scheme:dark;}
 .rating-star{font-size:26px;line-height:1;background:none;border:none;color:var(--border);cursor:pointer;padding:2px;}
 .rating-star.on{color:var(--accent3);}
 .danger-zone{border-color:#4a1f24;}
+.beta-stats{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;}
+.beta-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;font-size:12px;}
+.beta-card.shortlisted{border-color:var(--accent3);}
+.beta-card.invited{border-color:var(--accent);}
+.beta-card.declined{opacity:.5;}
+.beta-head{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.beta-score{font-family:var(--mono);font-weight:700;font-size:14px;min-width:34px;text-align:center;padding:4px 6px;border-radius:6px;background:#0d1f18;color:var(--accent);}
+.beta-score.mid{background:#26220a;color:var(--accent3);}
+.beta-score.low{background:#1f0e0e;color:var(--accent2);}
+.beta-name{font-weight:700;font-size:13px;flex:1;min-width:0;overflow-wrap:anywhere;}
+.beta-meta{color:var(--muted);font-family:var(--mono);font-size:10px;line-height:1.6;overflow-wrap:anywhere;}
+.beta-motivation{margin-top:6px;font-style:italic;color:#a0b4c0;white-space:pre-wrap;}
+.beta-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+.beta-actions button{padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:11px;font-family:var(--mono);cursor:pointer;}
 .feedback-item{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;font-size:12px;}
 .feedback-item .fb-meta{color:var(--muted);font-family:var(--mono);font-size:10px;margin-bottom:6px;}
 .feedback-item .fb-msg{white-space:pre-wrap;line-height:1.5;}
@@ -911,6 +925,26 @@ input[type="datetime-local"]{color-scheme:dark;}
   <div class="section-title">Tester Feedback</div>
   <button class="btn btn-ghost" style="margin-bottom:14px;" onclick="loadFeedback()">↻ Refresh</button>
   <div id="feedback-list"><div class="empty-state">No feedback yet.</div></div>
+
+  <div class="spacer"></div>
+  <div class="section-title">Beta Applicants</div>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5;">Applications from <a href="/beta" target="_blank" rel="noopener" style="color:var(--accent);">guardianangel.at/beta</a>, ranked by score (0–100). Shortlist the best, add their emails to Play Console's tester list, then send invites.</div>
+  <div class="beta-stats" id="beta-stats"></div>
+  <div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+    <button class="btn btn-ghost btn-sm" style="flex:1;" onclick="loadBetaApplicants()">↻ Refresh</button>
+    <button class="btn btn-warn btn-sm" style="flex:1;" onclick="shortlistTopBeta(12)">⭐ Shortlist top 12</button>
+    <button class="btn btn-ghost btn-sm" style="flex:1;" onclick="copyBetaEmails()">📋 Copy shortlisted emails</button>
+  </div>
+  <div class="card">
+    <div class="card-label">✉ Invite shortlisted testers</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.5;">First add their emails in Play Console → Closed testing → Testers, then paste the <strong>"Join on the web"</strong> opt-in link here.</div>
+    <input id="beta-optin-url" placeholder="https://play.google.com/apps/testing/at.guardianangel.twa"/>
+    <div class="spacer" style="height:6px;"></div>
+    <input id="beta-group-url" placeholder="Google Group link (optional) https://groups.google.com/g/…"/>
+    <div class="spacer" style="height:8px;"></div>
+    <button class="btn btn-primary btn-sm" id="btn-beta-invite" onclick="inviteShortlistedBeta()">Send Invites</button>
+  </div>
+  <div id="beta-list"><div class="empty-state">No applications yet.</div></div>
 </div>
 
 <!-- ══ LOG TAB ══ -->
@@ -1183,7 +1217,7 @@ function switchTab(name) {
   if (name === 'profile')   loadProfile();
   if (name === 'inbox')     showInboxView('list');
   if (name === 'log')       loadLog();
-  if (name === 'monitor')   { loadSessions(); loadEmergencyNumbers(); loadFeedback(); }
+  if (name === 'monitor')   { loadSessions(); loadEmergencyNumbers(); loadFeedback(); loadBetaApplicants(); }
 }
 
 function showView(view) {
@@ -2681,6 +2715,109 @@ async function loadFeedback() {
         <div class="fb-msg">${esc(f.message)}</div>
       </div>`).join('') : '<div class="empty-state">No feedback yet.</div>';
   } catch(e) { el.innerHTML = `<div class="empty-state">${esc(e.message)}</div>`; }
+}
+
+// ── BETA APPLICANTS (admin) ───────────────
+let betaApplicants = [];
+const BETA_LABELS = {
+  use_cases: { solo_travel: 'solo travel', hiking: 'outdoors', commute: 'commute', lone_work: 'lone work', family: 'family', other: 'other' },
+  trip_frequency: { weekly: 'trips weekly+', few: '2–3 trips/mo', once: '1 trip/mo', none: 'no trips soon' },
+  guardian: { yes: 'has guardian', maybe: 'guardian maybe', no: 'no guardian' },
+  feedback: { call: 'survey + call', survey: 'survey only', none: 'no feedback' },
+};
+
+async function loadBetaApplicants() {
+  try {
+    betaApplicants = await api('/api/admin/beta');
+    renderBetaApplicants();
+  } catch(e) { document.getElementById('beta-list').innerHTML = `<div class="empty-state">${esc(e.message)}</div>`; }
+}
+
+function renderBetaApplicants() {
+  const count = f => betaApplicants.filter(f).length;
+  document.getElementById('beta-stats').innerHTML = [
+    ['', `${betaApplicants.length} applied`],
+    ['green', `${count(a => a.eligible)} eligible`],
+    ['gray', `${count(a => a.platform === 'iphone')} iOS waitlist`],
+    ['yellow', `${count(a => a.status === 'shortlisted')} shortlisted`],
+    ['blue', `${count(a => a.status === 'invited')} invited`],
+  ].map(([cls, t]) => `<span class="chip ${cls}">${esc(t)}</span>`).join('');
+
+  const el = document.getElementById('beta-list');
+  if (!betaApplicants.length) { el.innerHTML = '<div class="empty-state">No applications yet.</div>'; return; }
+  el.innerHTML = betaApplicants.map(a => {
+    const ans = a.answers || {};
+    const scoreCls = a.score >= 70 ? '' : a.score >= 40 ? 'mid' : 'low';
+    const tags = [
+      ...(ans.use_cases || []).map(u => BETA_LABELS.use_cases[u] || u),
+      BETA_LABELS.trip_frequency[ans.trip_frequency], BETA_LABELS.guardian[ans.guardian], BETA_LABELS.feedback[ans.feedback],
+    ].filter(Boolean);
+    const why = !a.eligible ? (a.platform === 'iphone' ? 'iPhone — iOS waitlist' : 'not eligible (age / 14-day commitment)') : '';
+    const statusChip = { shortlisted: 'yellow', invited: 'blue', declined: 'red' }[a.status];
+    return `
+      <div class="beta-card ${esc(a.status)}">
+        <div class="beta-head">
+          <span class="beta-score ${scoreCls}">${a.eligible ? a.score : '—'}</span>
+          <span class="beta-name">${esc(a.name)} · ${esc(a.country)}</span>
+          ${statusChip ? `<span class="chip ${statusChip}">${esc(a.status.toUpperCase())}</span>` : ''}
+        </div>
+        <div class="beta-meta">${esc(a.email)}${ans.phone_model ? ' · ' + esc(ans.phone_model) : ''} · applied ${esc(new Date(a.created_at).toLocaleDateString())}${a.invited_at ? ' · invited ' + esc(new Date(a.invited_at).toLocaleDateString()) : ''}</div>
+        <div class="beta-meta">${why ? esc(why) : esc(tags.join(' · '))}</div>
+        ${ans.motivation ? `<div class="beta-motivation">“${esc(ans.motivation)}”</div>` : ''}
+        <div class="beta-actions">
+          ${a.eligible && a.status !== 'shortlisted' && a.status !== 'invited' ? `<button onclick="setBetaStatus(['${esc(a.id)}'], 'shortlisted')">⭐ Shortlist</button>` : ''}
+          ${a.status === 'shortlisted' || a.status === 'declined' ? `<button onclick="setBetaStatus(['${esc(a.id)}'], 'new')">↺ Reset</button>` : ''}
+          ${a.status !== 'declined' && a.status !== 'invited' ? `<button onclick="setBetaStatus(['${esc(a.id)}'], 'declined')">✕ Decline</button>` : ''}
+          <button onclick="deleteBetaApplicant('${esc(a.id)}')" style="color:var(--accent2);">🗑 Delete</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function setBetaStatus(ids, status) {
+  try { await api('/api/admin/beta/status', 'POST', { ids, status }); await loadBetaApplicants(); }
+  catch(e) { toast(e.message, 'err'); }
+}
+
+async function shortlistTopBeta(n) {
+  // Highest-scoring eligible applicants who haven't been invited or declined; the list is already sorted by score.
+  const already = betaApplicants.filter(a => a.status === 'shortlisted' || a.status === 'invited').length;
+  const picks = betaApplicants.filter(a => a.eligible && a.status === 'new').slice(0, Math.max(0, n - already));
+  if (!picks.length) { toast(already >= n ? `${already} already shortlisted or invited` : 'No eligible applicants left', 'err'); return; }
+  await setBetaStatus(picks.map(a => a.id), 'shortlisted');
+  toast(`Shortlisted ${picks.length} — review them, then copy their emails`);
+}
+
+async function copyBetaEmails() {
+  const emails = betaApplicants.filter(a => a.status === 'shortlisted').map(a => a.email);
+  if (!emails.length) { toast('Nobody is shortlisted yet', 'err'); return; }
+  const text = emails.join(', ');
+  try { await navigator.clipboard.writeText(text); toast(`Copied ${emails.length} emails — paste them into Play Console`); }
+  catch(e) { prompt('Copy these emails:', text); }
+}
+
+async function inviteShortlistedBeta() {
+  const ids = betaApplicants.filter(a => a.status === 'shortlisted').map(a => a.id);
+  const optin_url = document.getElementById('beta-optin-url').value.trim();
+  const group_url = document.getElementById('beta-group-url').value.trim();
+  if (!ids.length) { toast('Shortlist testers first', 'err'); return; }
+  if (!optin_url) { toast('Paste the opt-in link from Play Console', 'err'); return; }
+  if (!confirm(`Email the beta invitation to ${ids.length} shortlisted applicant(s)? Make sure their emails are already in Play Console's tester list.`)) return;
+  const btn = document.getElementById('btn-beta-invite');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    const r = await api('/api/admin/beta/invite', 'POST', { ids, optin_url, group_url });
+    toast(`Invited ${r.sent.length}${r.failed.length ? ` · ${r.failed.length} failed` : ''}`, r.failed.length ? 'err' : 'ok');
+    if (r.failed.length) alert('Not sent:\n' + r.failed.map(f => `${f.email} — ${f.reason}`).join('\n'));
+    await loadBetaApplicants();
+  } catch(e) { toast(e.message, 'err'); }
+  finally { btn.disabled = false; btn.textContent = 'Send Invites'; }
+}
+
+async function deleteBetaApplicant(id) {
+  if (!confirm('Delete this application permanently?')) return;
+  try { await api(`/api/admin/beta/${id}`, 'DELETE'); await loadBetaApplicants(); }
+  catch(e) { toast(e.message, 'err'); }
 }
 
 function applyAppConfig() {

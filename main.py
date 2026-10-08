@@ -37,6 +37,7 @@ from sqlalchemy import Boolean, Column, Integer, String, delete, select, text, u
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
+import beta  # noqa: E402  — beta tester applications (/beta)
 import pages  # noqa: E402  — public legal/account pages
 
 APP_VERSION = "1.0.0-beta.1"
@@ -230,6 +231,24 @@ class FeedbackModel(Base):
     app_version = Column(String,  nullable=True, default="")
     user_agent  = Column(String,  nullable=True, default="")
     created_at  = Column(String,  nullable=False)
+
+
+class BetaApplicationModel(Base):
+    """Someone who applied at /beta to join the Google Play closed test (or the iOS waitlist)."""
+    __tablename__ = "beta_applications"
+
+    id          = Column(String,  primary_key=True)
+    email       = Column(String,  nullable=False, unique=True)  # Google account email — Play invites testers by it
+    name        = Column(String,  nullable=False)
+    country     = Column(String,  nullable=True, default="")
+    platform    = Column(String,  nullable=False)               # "android" | "iphone"
+    answers     = Column(String,  nullable=False)               # JSON of the full normalized form
+    score       = Column(Integer, nullable=False, default=0)    # 0–100, see beta.score()
+    eligible    = Column(Boolean, nullable=False, default=False)
+    status      = Column(String,  nullable=False, default="new")  # new | shortlisted | invited | declined
+    created_at  = Column(String,  nullable=False)
+    updated_at  = Column(String,  nullable=False)
+    invited_at  = Column(String,  nullable=True, default="")
 
 
 class AuthSessionModel(Base):
@@ -2461,6 +2480,121 @@ async def list_feedback(db: AsyncSession = Depends(get_db), _admin: UserModel = 
     return [{"id": f.id, "username": f.username or "(deleted account)", "rating": f.rating, "message": f.message,
              "app_version": f.app_version or "", "user_agent": f.user_agent or "", "created_at": f.created_at}
             for f in result.scalars().all()]
+
+
+# ── Beta tester applications ──────────────────
+PLAY_STORE_URL_TEMPLATE = "https://play.google.com/store/apps/details?id={package}"
+
+
+def beta_to_dict(b: BetaApplicationModel) -> dict:
+    return {"id": b.id, "email": b.email, "name": b.name, "country": b.country or "", "platform": b.platform,
+            "answers": json.loads(b.answers), "score": b.score, "eligible": bool(b.eligible), "status": b.status,
+            "created_at": b.created_at, "invited_at": b.invited_at or ""}
+
+
+@app.get("/beta", response_class=HTMLResponse)
+def beta_form():
+    return HTMLResponse(beta.form_page())
+
+
+@app.post("/beta", response_class=HTMLResponse)
+@limiter.limit("5/minute")
+async def beta_apply(request: Request, db: AsyncSession = Depends(get_db)):
+    form = await request.form()
+    raw = {k: form.get(k) for k in form.keys()}
+    raw["use_cases"] = form.getlist("use_cases")
+    if raw.get("website"):  # honeypot — bots fill every field; quietly pretend it worked
+        return HTMLResponse(beta.thanks_page(raw.get("name", ""), raw.get("platform", "")))
+    a, errors = beta.validate(raw)
+    if errors:
+        return HTMLResponse(beta.form_page(a, errors), status_code=400)
+
+    now = datetime.now(timezone.utc).isoformat()
+    existing = (await db.execute(select(BetaApplicationModel).where(BetaApplicationModel.email == a["email"]))).scalar_one_or_none()
+    b = existing or BetaApplicationModel(id=str(uuid.uuid4())[:12], email=a["email"], created_at=now, status="new")
+    b.name, b.country, b.platform = a["name"], a["country"], a["platform"]
+    b.answers = json.dumps(a)
+    b.score = beta.score(a)
+    b.eligible = beta.is_eligible(a)
+    b.updated_at = now
+    if not existing:
+        db.add(b)
+    await db.commit()
+    asyncio.create_task(_send_quietly(a["email"], "🛡 Thanks for applying to the Guardian Angel beta",
+                                      beta.confirmation_email(a["name"], a["platform"])))
+    return HTMLResponse(beta.thanks_page(a["name"], a["platform"]))
+
+
+async def _send_quietly(to: str, subject: str, body_html: str) -> bool:
+    try:
+        await send_html_email(to, subject, body_html)
+        return True
+    except Exception as exc:
+        print(f"[EMAIL ERROR] {to}: {exc}")
+        return False
+
+
+@app.get("/api/admin/beta")
+async def list_beta_applications(db: AsyncSession = Depends(get_db), _admin: UserModel = Depends(require_admin)):
+    result = await db.execute(select(BetaApplicationModel)
+                              .order_by(BetaApplicationModel.eligible.desc(), BetaApplicationModel.score.desc(),
+                                        BetaApplicationModel.created_at))
+    return [beta_to_dict(b) for b in result.scalars().all()]
+
+
+class BetaStatusUpdate(BaseModel):
+    ids: list[str]
+    status: str
+
+
+@app.post("/api/admin/beta/status")
+async def set_beta_status(body: BetaStatusUpdate, db: AsyncSession = Depends(get_db),
+                          _admin: UserModel = Depends(require_admin)):
+    if body.status not in ("new", "shortlisted", "declined"):
+        raise HTTPException(400, "Status must be new, shortlisted or declined")
+    await db.execute(update(BetaApplicationModel).where(BetaApplicationModel.id.in_(body.ids)).values(status=body.status))
+    await db.commit()
+    return {"ok": True}
+
+
+class BetaInvite(BaseModel):
+    ids: list[str]
+    optin_url: str            # Play Console → Closed testing → Testers → "Join on the web" link
+    group_url: str = ""       # optional Google Group the testers list is built from
+
+
+@app.post("/api/admin/beta/invite")
+async def invite_beta_testers(body: BetaInvite, db: AsyncSession = Depends(get_db),
+                              _admin: UserModel = Depends(require_admin)):
+    if not body.optin_url.startswith("https://play.google.com/"):
+        raise HTTPException(400, "Paste the opt-in link from Play Console (it starts with https://play.google.com/)")
+    if body.group_url and not body.group_url.startswith("https://groups.google.com/"):
+        raise HTTPException(400, "The group link should start with https://groups.google.com/")
+    package = os.getenv("ANDROID_PACKAGE_NAME", "").strip() or "at.guardianangel.twa"
+    store_url = PLAY_STORE_URL_TEMPLATE.format(package=package)
+    result = await db.execute(select(BetaApplicationModel).where(BetaApplicationModel.id.in_(body.ids)))
+    sent, failed = [], []
+    for b in result.scalars().all():
+        if b.platform != "android":
+            failed.append({"email": b.email, "reason": "iPhone — waitlist only"})
+            continue
+        ok = await _send_quietly(b.email, "🛡 You're in! Join the Guardian Angel beta",
+                                 beta.invite_email(b.name, body.optin_url, store_url, body.group_url))
+        if ok:
+            b.status, b.invited_at = "invited", datetime.now(timezone.utc).isoformat()
+            sent.append(b.email)
+        else:
+            failed.append({"email": b.email, "reason": "email could not be sent"})
+    await db.commit()
+    return {"sent": sent, "failed": failed}
+
+
+@app.delete("/api/admin/beta/{application_id}")
+async def delete_beta_application(application_id: str, db: AsyncSession = Depends(get_db),
+                                  _admin: UserModel = Depends(require_admin)):
+    await db.execute(delete(BetaApplicationModel).where(BetaApplicationModel.id == application_id))
+    await db.commit()
+    return {"ok": True}
 
 
 # ── Public pages + client config ──────────────
