@@ -33,7 +33,7 @@ from pydantic import BaseModel
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
-from sqlalchemy import Boolean, Column, Integer, String, delete, select, text, update
+from sqlalchemy import Boolean, Column, Integer, String, delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
@@ -2190,6 +2190,8 @@ async def register(request: Request, body: UserRegister, response: Response, db:
         raise HTTPException(400, f"Password must be at least {MIN_PASSWORD_LENGTH} characters")
     if not body.accept_terms:
         raise HTTPException(400, "Please accept the Terms of Use and Privacy Policy to create an account")
+    if beta_invite_only() and body.username not in ADMIN_USERNAMES:
+        await check_beta_invite(db, body.email)
     now = datetime.now(timezone.utc).isoformat()
     user = UserModel(
         id=str(uuid.uuid4())[:12],
@@ -2208,6 +2210,35 @@ async def register(request: Request, body: UserRegister, response: Response, db:
 
 
 MIN_PASSWORD_LENGTH = 8
+
+
+# ── Private beta: only invited testers may create accounts ──
+def beta_invite_only() -> bool:
+    return os.getenv("BETA_INVITE_ONLY", "").strip().lower() in ("1", "true", "yes")
+
+
+def beta_allowed_emails() -> set[str]:
+    """Extra emails let in without applying (e.g. the Google Play reviewer account, friends)."""
+    return {e.strip().lower() for e in os.getenv("BETA_ALLOWED_EMAILS", "").split(",") if e.strip()}
+
+
+async def check_beta_invite(db: AsyncSession, email: str) -> None:
+    email = (email or "").strip().lower()
+    closed = (f"Guardian Angel is in private beta. Apply at {APP_BASE_URL}/beta — if you've been invited, "
+              "register with the email address you applied with.")
+    if not email:
+        raise HTTPException(403, closed)
+    if email not in beta_allowed_emails():
+        invited = (await db.execute(select(BetaApplicationModel).where(
+            func.lower(BetaApplicationModel.email) == email,
+            BetaApplicationModel.status.in_(["shortlisted", "invited"]),
+        ))).scalar_one_or_none()
+        if not invited:
+            raise HTTPException(403, closed)
+    # One account per invitation.
+    taken = (await db.execute(select(UserModel.id).where(func.lower(UserModel.email) == email).limit(1))).first()
+    if taken:
+        raise HTTPException(400, "An account with this email already exists — sign in, or use “Forgot password?”")
 
 
 def me_dict(user: UserModel) -> dict:
@@ -2616,7 +2647,8 @@ def delete_account_info():
 @app.get("/config.js")
 def client_config():
     """Runtime config for the web app (no secrets) — lets one build run in every environment."""
-    cfg = {"appVersion": APP_VERSION, "sentryDsn": SENTRY_DSN, "supportEmail": pages.support_email()}
+    cfg = {"appVersion": APP_VERSION, "sentryDsn": SENTRY_DSN, "supportEmail": pages.support_email(),
+           "inviteOnly": beta_invite_only()}
     return Response(f"window.GA_CONFIG = {json.dumps(cfg)};", media_type="application/javascript",
                     headers={"Cache-Control": "no-cache"})
 

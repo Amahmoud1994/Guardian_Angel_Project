@@ -73,6 +73,8 @@ You don't need a mailbox; free forwarding is enough:
    | `ADMIN_USERNAMES` | your own username(s), comma-separated. Register these yourself **before** sharing the link |
    | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | the `public` / `private` values from your local `vapid.json`. Paste the private key exactly as it appears, `\n` included |
    | `CASE_FILE_ENCRYPTION_KEY` | the `key` value from your local `case_key.json` |
+   | `BETA_INVITE_ONLY` | `true` during the beta: only testers you shortlisted or invited at **Monitor → Beta Applicants** (plus admins) can create accounts. Set to `false` at public launch |
+   | `BETA_ALLOWED_EMAILS` | extra emails allowed to sign up without applying, comma-separated, e.g. the Google Play reviewer account's email |
    | `SENTRY_DSN` | optional: create a free project at sentry.io (platform: FastAPI) and paste its DSN |
    | `ANDROID_PACKAGE_NAME`, `ANDROID_CERT_SHA256` | leave empty for now (filled in at step 4) |
 
@@ -114,7 +116,7 @@ You don't need a mailbox; free forwarding is enough:
 3. **Test and release → Closed testing:** create a track, upload the `.aab`, and add testers. The easiest way is a Google Group (testers join the group, then accept the opt-in link).
 4. Complete **App content**. All the answers are in [store/PLAY_LISTING.md](store/PLAY_LISTING.md):
    - Privacy policy: `https://guardianangel.at/privacy`
-   - App access: give reviewers a demo account (create one, e.g. `play_reviewer`, and fill in its profile)
+   - App access: give reviewers a demo account (create one, e.g. `play_reviewer`, and fill in its profile). With invite-only on, add its email to `BETA_ALLOWED_EMAILS` first, or create it before switching invite-only on
    - Data safety, content rating, target audience (18+), ads (none)
    - Account deletion URL: `https://guardianangel.at/delete-account`
    - Health apps declaration (answer as described in the listing file)

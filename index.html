@@ -342,6 +342,10 @@ input[type="datetime-local"]{color-scheme:dark;}
       <a class="auth-link" onclick="showForgotPassword(false)">← Back to sign in</a>
     </div>
     <div id="auth-register" style="display:none">
+      <div id="invite-only-notice" style="display:none;font-size:12px;line-height:1.6;color:#a0c8b8;background:#0e1a14;border:1px solid #1f4a38;border-radius:8px;padding:10px 14px;margin-bottom:14px;">
+        🔒 <strong>Private beta.</strong> Only invited testers can create an account — register with the <strong>email address you applied with</strong>.
+        Not invited yet? <a href="/beta" style="color:var(--accent);">Apply to test →</a>
+      </div>
       <div class="field"><label>Username</label><input id="reg-username" placeholder="choose a username" autocomplete="username"/></div>
       <div class="field"><label>Password</label><input id="reg-password" type="password" placeholder="at least 8 characters" autocomplete="new-password"/></div>
       <div class="field"><label>Email <span style="color:var(--muted);font-weight:400;">(recommended — needed to reset your password)</span></label><input id="reg-email" type="email" placeholder="you@example.com" autocomplete="email"/></div>
@@ -1442,6 +1446,7 @@ async function doRegister() {
   if (!username || !password) { showAuthError('Username and password required'); return; }
   if (password.length < 8) { showAuthError('Password must be at least 8 characters'); return; }
   if (!accept_terms) { showAuthError('Please accept the Terms of Use and Privacy Policy'); return; }
+  if (APP_CONFIG.inviteOnly && !email) { showAuthError('Enter the email address you applied to the beta with'); return; }
   try {
     const user = await api('/api/register', 'POST', { username, password, email, reason, accept_terms });
     setUser(user);
@@ -2824,6 +2829,11 @@ function applyAppConfig() {
   const v = APP_CONFIG.appVersion ? `v${APP_CONFIG.appVersion}` : '';
   document.getElementById('app-version-label').textContent = v ? `Guardian Angel ${v}` : '';
   if (v) document.getElementById('auth-version').textContent = `PERSONAL SAFETY · ${v.toUpperCase()}`;
+  if (APP_CONFIG.inviteOnly) {
+    document.getElementById('invite-only-notice').style.display = 'block';
+    document.getElementById('reg-email').closest('.field').querySelector('label').innerHTML =
+      'Email <span style="color:var(--muted);font-weight:400;">(the one you applied with)</span>';
+  }
   const support = document.getElementById('support-link');
   if (APP_CONFIG.supportEmail) support.href = `mailto:${APP_CONFIG.supportEmail}?subject=${encodeURIComponent('Guardian Angel support')}`;
   else support.style.display = 'none';
