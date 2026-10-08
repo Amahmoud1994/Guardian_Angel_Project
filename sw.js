@@ -1,7 +1,7 @@
 // Guardian Angel — Service Worker
 // Handles: install/activate lifecycle, offline caching, Web Push alerts
 
-const CACHE = 'guardian-angel-v2';
+const CACHE = 'guardian-angel-v3';
 const PRECACHE = ['/', '/manifest.json', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 // ── Install: pre-cache app shell ──────────────────────────────────────────────

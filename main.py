@@ -9,6 +9,7 @@ import hashlib
 import html as html_lib
 import json
 import os
+import re
 import secrets
 import smtplib
 import sys
@@ -25,9 +26,9 @@ from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
-from fastapi import Cookie, Depends, FastAPI, HTTPException, Request, Response
+from fastapi import Cookie, Depends, FastAPI, Form, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -35,6 +36,21 @@ from slowapi.util import get_remote_address
 from sqlalchemy import Boolean, Column, Integer, String, delete, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
+
+import pages  # noqa: E402  — public legal/account pages
+
+APP_VERSION = "1.0.0-beta.1"
+
+# Error monitoring — only active when SENTRY_DSN is set (hosted deploys).
+SENTRY_DSN = os.getenv("SENTRY_DSN", "").strip()
+if SENTRY_DSN:
+    try:
+        import sentry_sdk
+        sentry_sdk.init(dsn=SENTRY_DSN, release=f"guardian-angel@{APP_VERSION}",
+                        environment=os.getenv("SENTRY_ENVIRONMENT", "production"),
+                        send_default_pii=False, traces_sample_rate=0.0)
+    except ImportError:
+        print("[SENTRY] sentry-sdk not installed — error monitoring disabled")
 
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -48,10 +64,11 @@ ICONS_DIR  = BASE_DIR / "icons"
 # ─────────────────────────────────────────────
 #  Icon generation (pure stdlib — no Pillow)
 # ─────────────────────────────────────────────
-def _make_png(size: int) -> bytes:
+def _make_png(size: int, scale: float = 1.0) -> bytes:
+    # scale < 1 shrinks the mark for "maskable" icons, keeping it inside Android's circular safe zone.
     import struct, zlib
     cx = cy = size / 2
-    outer, inner, dot_r = size * 0.40, size * 0.28, size * 0.11
+    outer, inner, dot_r = size * 0.40 * scale, size * 0.28 * scale, size * 0.11 * scale
     bg, ring, dot = (10, 13, 15), (0, 229, 160), (0, 180, 120)
     rows = []
     for y in range(size):
@@ -83,11 +100,37 @@ def _ensure_icons():
         if not p.exists():
             p.write_bytes(_make_png(size))
             print(f"[ICONS] Generated icon-{size}.png")
+    for size in (192, 512):
+        p = ICONS_DIR / f"maskable-{size}.png"
+        if not p.exists():
+            p.write_bytes(_make_png(size, scale=0.72))
+            print(f"[ICONS] Generated maskable-{size}.png")
 
 # ─────────────────────────────────────────────
 #  Database
 # ─────────────────────────────────────────────
-engine            = create_async_engine(f"sqlite+aiosqlite:///{DB_PATH}", echo=False)
+def _database_config() -> tuple[str, dict]:
+    """DATABASE_URL (Postgres, for hosted deploys where the disk is wiped on restart) or local SQLite.
+    Hosts hand out postgres:// URLs, often with ?sslmode=…, which asyncpg doesn't accept."""
+    url = os.getenv("DATABASE_URL", "").strip()
+    if not url:
+        return f"sqlite+aiosqlite:///{DB_PATH}", {}
+    from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+    parts = urlsplit(url)
+    scheme = "postgresql+asyncpg" if parts.scheme in ("postgres", "postgresql") else parts.scheme
+    query = dict(parse_qsl(parts.query))
+    connect_args = {}
+    sslmode = query.pop("sslmode", None)
+    if sslmode and sslmode != "disable":
+        connect_args["ssl"] = "require"
+    query.pop("channel_binding", None)
+    return urlunsplit((scheme, parts.netloc, parts.path, urlencode(query), parts.fragment)), connect_args
+
+
+DATABASE_URL, _DB_CONNECT_ARGS = _database_config()
+IS_POSTGRES       = DATABASE_URL.startswith("postgresql")
+engine            = create_async_engine(DATABASE_URL, echo=False, connect_args=_DB_CONNECT_ARGS,
+                                        pool_pre_ping=IS_POSTGRES)
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
 
@@ -164,7 +207,29 @@ class UserModel(Base):
     blood_type    = Column(String, nullable=True, default="")
     medical_notes = Column(String, nullable=True, default="")  # allergies, conditions, etc.
     photo         = Column(String, nullable=True, default="")  # base64 data-URI, client-resized
+    consented_at  = Column(String, nullable=True, default="")  # when terms + privacy (health/location data) were accepted
     created_at    = Column(String, nullable=False)
+
+
+class PasswordResetModel(Base):
+    __tablename__ = "password_resets"
+
+    token_hash = Column(String, primary_key=True)  # sha256 of the emailed token — the raw token is never stored
+    user_id    = Column(String, nullable=False)
+    expires_at = Column(String, nullable=False)
+
+
+class FeedbackModel(Base):
+    __tablename__ = "feedback"
+
+    id          = Column(String,  primary_key=True)
+    user_id     = Column(String,  nullable=True, default="")  # cleared if the account is deleted
+    username    = Column(String,  nullable=True, default="")
+    rating      = Column(Integer, nullable=True)             # 1–5, optional
+    message     = Column(String,  nullable=False)
+    app_version = Column(String,  nullable=True, default="")
+    user_agent  = Column(String,  nullable=True, default="")
+    created_at  = Column(String,  nullable=False)
 
 
 class AuthSessionModel(Base):
@@ -391,6 +456,15 @@ def decrypt_case_file(ciphertext: str) -> dict:
 # ─────────────────────────────────────────────
 #  Constants
 # ─────────────────────────────────────────────
+# Shown to people (emails, UI). ESCALATION_LEVELS below are internal event codes.
+LEVEL_DISPLAY_NAMES = {
+    0: "SAFE",
+    1: "CHECK-IN OVERDUE",
+    2: "WARNING",
+    3: "GUARDIANS ALERTED",
+    4: "CRITICAL",
+}
+
 ESCALATION_LEVELS = {
     0: "IDLE",
     1: "CHECK_IN_REQUESTED",
@@ -403,7 +477,7 @@ SAFE_CODE   = "SAFE123"
 DURESS_CODE = "HELP999"
 
 # The app's own public URL, used to build the guardian reply link in alert emails.
-# Set APP_BASE_URL in .env to your real deployed URL (e.g. https://guardian-angel-xxxx.onrender.com).
+# Production: APP_BASE_URL=https://guardianangel.at (see LAUNCH.md). Unset locally → localhost.
 # On Render, RENDER_EXTERNAL_URL is set automatically, so links work without extra config.
 APP_BASE_URL = (os.getenv("APP_BASE_URL") or os.getenv("RENDER_EXTERNAL_URL") or "http://localhost:8000").rstrip("/")
 
@@ -411,7 +485,9 @@ APP_BASE_URL = (os.getenv("APP_BASE_URL") or os.getenv("RENDER_EXTERNAL_URL") or
 SESSION_COOKIE_NAME = "ga_session"
 SESSION_TTL_DAYS = 30
 COOKIE_SECURE = os.getenv("COOKIE_SECURE", "true").lower() != "false"
-ADMIN_USERNAMES = {"AAH_Test_02", "test_aah"}  # mirrors the client-side admin gate for the Monitor tab
+# Comma-separated usernames with access to the Monitor tab / admin APIs. Empty by default — a
+# hard-coded list would let anyone register one of those names on a fresh database.
+ADMIN_USERNAMES = {u.strip() for u in os.getenv("ADMIN_USERNAMES", "").split(",") if u.strip()}
 
 # Not exhaustive — best-effort lookup so guardians know which number to dial.
 # Falls back to a generic "check the local emergency number" message when the
@@ -541,6 +617,7 @@ class UserRegister(BaseModel):
     password: str
     reason: str = ""
     email: str = ""
+    accept_terms: bool = False  # terms + privacy policy, incl. processing of health/location data
 
 
 class UserLogin(BaseModel):
@@ -695,7 +772,7 @@ def build_email_body(level: int, s: SessionModel, sent_by: str, message_text: Op
         1: ("#6ec6ff", "⏰ Check-in Overdue",    "The user has missed their scheduled check-in. Please try to contact them."),
         2: ("#ffd32a", "⚠️ Warning Issued",       "No response after reminder. Immediate contact is recommended."),
         3: ("#ff8c42", "🚨 Guardian Alert",        "Multiple contact attempts failed. You are a designated guardian — please act now."),
-        4: ("#ff4757", "🔴 Authority Dispatch",    "All contact attempts exhausted. Authorities have been dispatched. A digital case file has been generated."),
+        4: ("#ff4757", "🔴 Critical — Contact Authorities", "All check-ins have been missed. Guardian Angel has NOT contacted the authorities — please do so now if you cannot reach them. A digital case file has been prepared below."),
     }
     color, title, desc = level_info.get(level, ("#ffffff", "Alert", ""))
     now = datetime.now(timezone.utc)
@@ -718,7 +795,7 @@ def build_email_body(level: int, s: SessionModel, sent_by: str, message_text: Op
         rows.append(("Planned Route", s.route))
     if s.communication_method:
         rows.append(("Communication Method", s.communication_method))
-    rows.append(("Alert Level", f"<span style='color:{color};font-weight:bold;font-family:monospace;'>LEVEL {level} — {ESCALATION_LEVELS.get(level,'')}</span>"))
+    rows.append(("Alert Level", f"<span style='color:{color};font-weight:bold;font-family:monospace;'>LEVEL {level} — {LEVEL_DISPLAY_NAMES.get(level,'')}</span>"))
 
     rows_html = "".join(
         f"<tr><td style='padding:8px 0;color:#5a7080;border-bottom:1px solid #1f2a30;width:140px;'>{k}</td>"
@@ -834,7 +911,7 @@ async def send_alert_emails(s: SessionModel, level: int, message_text: Optional[
         1: f"⏰ Check-in Overdue — {s.user_name}",
         2: f"⚠️ Warning: No Response from {s.user_name}",
         3: f"🚨 URGENT: Guardian Alert for {s.user_name}",
-        4: f"🔴 CRITICAL: Authority Dispatch — {s.user_name} May Be in Danger",
+        4: f"🔴 CRITICAL: {s.user_name} May Be in Danger — Please Contact Authorities",
     }
     subject = subjects.get(level, f"Guardian Angel Alert — Level {level}")
     sent_by = await get_sender_label(s)
@@ -994,13 +1071,13 @@ async def escalate(db: AsyncSession, session_id: str):
         1: f"Check-in overdue for {s.user_name} — sending reminder.",
         2: f"No response from {s.user_name} — issuing WARNING.",
         3: f"Guardians alerted for {s.user_name}: {guardian_names(s)}",
-        4: f"AUTHORITY DISPATCH triggered for {s.user_name} — Digital Case File generated.",
+        4: f"CRITICAL: all check-ins missed by {s.user_name} — guardians urged to contact local authorities; case file prepared.",
     }
     push_titles = {
         1: "⏰ Check-In Overdue",
         2: "⚠️ Warning Issued",
         3: "🚨 Guardian Alert",
-        4: "🔴 Authority Dispatch",
+        4: "🔴 Critical — Guardians Alerted",
     }
     await log_event(db, session_id, next_level, messages.get(next_level, "Escalation step"))
     if next_level == 4:
@@ -1131,6 +1208,7 @@ async def lifespan(_):
             "ALTER TABLE users ADD COLUMN blood_type TEXT DEFAULT ''",
             "ALTER TABLE users ADD COLUMN medical_notes TEXT DEFAULT ''",
             "ALTER TABLE users ADD COLUMN photo TEXT DEFAULT ''",
+            "ALTER TABLE users ADD COLUMN consented_at TEXT DEFAULT ''",
             "ALTER TABLE user_guardians ADD COLUMN linked_user_id TEXT DEFAULT ''",
             "ALTER TABLE user_guardians ADD COLUMN linked_username TEXT DEFAULT ''",
             "ALTER TABLE user_guardians ADD COLUMN status TEXT DEFAULT 'accepted'",
@@ -1138,6 +1216,10 @@ async def lifespan(_):
             "ALTER TABLE user_guardians ADD COLUMN verify_token TEXT DEFAULT ''",
             "ALTER TABLE user_guardians ADD COLUMN verify_sent_at TEXT DEFAULT ''",
         ]:
+            if IS_POSTGRES:
+                # A failed statement aborts the whole Postgres transaction, so never let one fail.
+                await conn.execute(text(stmt.replace("ADD COLUMN", "ADD COLUMN IF NOT EXISTS")))
+                continue
             try:
                 await conn.execute(text(stmt))
             except Exception:
@@ -1165,7 +1247,7 @@ async def lifespan(_):
     yield
 
 
-app = FastAPI(title="Guardian Angel API", version="1.0.0-POC", lifespan=lifespan)
+app = FastAPI(title="Guardian Angel API", version=APP_VERSION, lifespan=lifespan)
 
 # Cookies + wildcard CORS is rejected by browsers once allow_credentials=True, so this is
 # locked to the app's own origin(s) rather than "*". Override via ALLOWED_ORIGINS (comma-
@@ -1200,10 +1282,16 @@ def serve_manifest():
 
 @app.get("/icons/{filename}")
 def serve_icon(filename: str):
-    path = BASE_DIR / "icons" / filename
-    if not path.exists() or not path.is_file():
+    # Strict allow-list: on Windows "..\\.env" is a single path segment and would escape the folder.
+    if not ICON_NAME_RE.fullmatch(filename):
+        raise HTTPException(404, "Icon not found")
+    path = (ICONS_DIR / filename).resolve()
+    if path.parent != ICONS_DIR.resolve() or not path.is_file():
         raise HTTPException(404, "Icon not found")
     return FileResponse(path, media_type="image/png")
+
+
+ICON_NAME_RE = re.compile(r"[A-Za-z0-9_-]+\.png")
 
 
 # ─────────────────────────────────────────────
@@ -2079,21 +2167,33 @@ async def register(request: Request, body: UserRegister, response: Response, db:
     result = await db.execute(select(UserModel).where(UserModel.username == body.username))
     if result.scalar_one_or_none():
         raise HTTPException(400, "Username already taken")
-    if len(body.password) < 6:
-        raise HTTPException(400, "Password must be at least 6 characters")
+    if len(body.password) < MIN_PASSWORD_LENGTH:
+        raise HTTPException(400, f"Password must be at least {MIN_PASSWORD_LENGTH} characters")
+    if not body.accept_terms:
+        raise HTTPException(400, "Please accept the Terms of Use and Privacy Policy to create an account")
+    now = datetime.now(timezone.utc).isoformat()
     user = UserModel(
         id=str(uuid.uuid4())[:12],
         username=body.username,
         password_hash=hash_password(body.password),
         reason=body.reason,
-        email=body.email,
-        created_at=datetime.now(timezone.utc).isoformat(),
+        email=body.email.strip(),
+        consented_at=now,
+        created_at=now,
     )
     db.add(user)
     await db.commit()
     token = await create_auth_session(db, user.id)
     set_session_cookie(response, token)
-    return {"id": user.id, "username": user.username, "email": user.email or ""}
+    return me_dict(user)
+
+
+MIN_PASSWORD_LENGTH = 8
+
+
+def me_dict(user: UserModel) -> dict:
+    return {"id": user.id, "username": user.username, "reason": user.reason or "", "email": user.email or "",
+            "is_admin": user.username in ADMIN_USERNAMES}
 
 
 @app.post("/api/login")
@@ -2109,7 +2209,7 @@ async def login(request: Request, body: UserLogin, response: Response, db: Async
     token = await create_auth_session(db, user.id)
     await db.commit()
     set_session_cookie(response, token)
-    return {"id": user.id, "username": user.username, "reason": user.reason, "email": user.email or ""}
+    return me_dict(user)
 
 
 @app.post("/api/logout")
@@ -2126,7 +2226,280 @@ async def logout(response: Response, ga_session: Optional[str] = Cookie(None), d
 
 @app.get("/api/me")
 async def get_me(user: UserModel = Depends(get_current_user)):
-    return {"id": user.id, "username": user.username, "reason": user.reason or "", "email": user.email or ""}
+    return me_dict(user)
+
+
+# ── Password reset ────────────────────────────
+RESET_LINK_TTL = timedelta(hours=1)
+
+
+class ForgotPassword(BaseModel):
+    identifier: str  # username or email
+
+
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def password_reset_email_body(username: str, link: str) -> str:
+    u = html_lib.escape(username)
+    return f"""<!DOCTYPE html><html>
+<body style="margin:0;padding:20px;font-family:Arial,sans-serif;background:#0a0d0f;color:#e8eef2;">
+<div style="max-width:520px;margin:0 auto;background:#161b1f;border-radius:12px;overflow:hidden;border:2px solid #00e5a0;">
+  <div style="background:#111518;padding:20px 24px;border-bottom:1px solid #1f2a30;">
+    <p style="margin:0;font-size:20px;font-weight:bold;color:#00e5a0;">🛡 GUARDIAN ANGEL</p>
+    <p style="margin:4px 0 0;font-size:11px;color:#5a7080;font-family:monospace;letter-spacing:1px;">PASSWORD RESET</p>
+  </div>
+  <div style="padding:20px 24px;font-size:14px;line-height:1.6;">
+    <p style="margin:0 0 12px;">Hi {u},</p>
+    <p style="margin:0 0 20px;">Someone asked to reset the password for your Guardian Angel account. If it was you, choose a new password:</p>
+    <div style="text-align:center;">
+      <a href="{link}" style="display:inline-block;padding:12px 24px;border-radius:8px;background:#00e5a0;color:#0a0d0f;font-weight:bold;text-decoration:none;font-size:14px;">Reset Password →</a>
+    </div>
+    <p style="margin:20px 0 0;font-size:12px;color:#5a7080;">This link expires in 1 hour and works once. If you didn't ask for this, ignore this email — your password stays the same.</p>
+  </div>
+</div>
+</body></html>"""
+
+
+@app.post("/api/password/forgot")
+@limiter.limit("5/minute")
+async def forgot_password(request: Request, body: ForgotPassword, db: AsyncSession = Depends(get_db)):
+    """Always answers the same way, so it can't be used to find out which usernames/emails exist."""
+    ident = body.identifier.strip()
+    generic = {"ok": True, "message": "If an account with that username or email has an email address on file, "
+                                      "we've sent a reset link to it."}
+    if not ident:
+        return generic
+    result = await db.execute(select(UserModel).where((UserModel.username == ident) | (UserModel.email == ident)))
+    users = [u for u in result.scalars().all() if (u.email or "").strip()]
+    for user in users[:1]:
+        token = secrets.token_urlsafe(32)
+        await db.execute(delete(PasswordResetModel).where(PasswordResetModel.user_id == user.id))
+        db.add(PasswordResetModel(token_hash=_hash_token(token), user_id=user.id,
+                                  expires_at=(datetime.now(timezone.utc) + RESET_LINK_TTL).isoformat()))
+        await db.commit()
+        # Send in the background: waiting on SMTP would make "account exists" answers measurably slower.
+        asyncio.create_task(_send_reset_email(user.email.strip(), user.username, token))
+    return generic
+
+
+async def _send_reset_email(to: str, username: str, token: str) -> None:
+    try:
+        await send_html_email(to, "🛡 Reset your Guardian Angel password",
+                              password_reset_email_body(username, f"{APP_BASE_URL}/reset-password/{token}"))
+    except Exception as exc:
+        print(f"[RESET EMAIL ERROR] {exc}")
+
+
+async def _reset_for_token(db: AsyncSession, token: str) -> Optional[PasswordResetModel]:
+    result = await db.execute(select(PasswordResetModel).where(PasswordResetModel.token_hash == _hash_token(token)))
+    r = result.scalar_one_or_none()
+    if not r or datetime.fromisoformat(r.expires_at) < datetime.now(timezone.utc):
+        return None
+    return r
+
+
+RESET_INVALID_MSG = "This reset link is invalid, has already been used, or has expired. Request a new one from the sign-in screen."
+
+
+@app.get("/reset-password/{token}", response_class=HTMLResponse)
+@limiter.limit("30/minute")
+async def reset_password_page(request: Request, token: str, db: AsyncSession = Depends(get_db)):
+    if not await _reset_for_token(db, token):
+        return HTMLResponse(pages.message_page("Link not valid", RESET_INVALID_MSG, "#5a7080"))
+    return HTMLResponse(pages.reset_form_page(token))
+
+
+@app.post("/reset-password/{token}", response_class=HTMLResponse)
+@limiter.limit("10/minute")
+async def reset_password_submit(
+    request: Request, token: str, password: str = Form(...), password_confirm: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+):
+    r = await _reset_for_token(db, token)
+    if not r:
+        return HTMLResponse(pages.message_page("Link not valid", RESET_INVALID_MSG, "#5a7080"))
+    if len(password) < MIN_PASSWORD_LENGTH:
+        return HTMLResponse(pages.reset_form_page(token, f"Use at least {MIN_PASSWORD_LENGTH} characters."))
+    if password != password_confirm:
+        return HTMLResponse(pages.reset_form_page(token, "The two passwords don't match."))
+    result = await db.execute(select(UserModel).where(UserModel.id == r.user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        return HTMLResponse(pages.message_page("Link not valid", RESET_INVALID_MSG, "#5a7080"))
+    user.password_hash = hash_password(password)
+    # Single use, and sign out every device — whoever had the old password is locked out.
+    await db.execute(delete(PasswordResetModel).where(PasswordResetModel.user_id == user.id))
+    await db.execute(delete(AuthSessionModel).where(AuthSessionModel.user_id == user.id))
+    await db.commit()
+    return HTMLResponse(pages.message_page("Password changed ✓",
+                                           "Your password has been updated and you've been signed out everywhere. "
+                                           "Sign in again with your new password."))
+
+
+# ── Account: export + deletion ────────────────
+class AccountDelete(BaseModel):
+    password: str
+
+
+async def _user_session_ids(db: AsyncSession, user_id: str) -> list[str]:
+    result = await db.execute(select(SessionModel.session_id).where(SessionModel.user_id == user_id))
+    return [row[0] for row in result.all()]
+
+
+@app.get("/api/account/export")
+async def export_account(db: AsyncSession = Depends(get_db), user: UserModel = Depends(get_current_user)):
+    """Everything we hold about the signed-in user, as a downloadable JSON file (GDPR access/portability)."""
+    sids = await _user_session_ids(db, user.id)
+    guardians = (await db.execute(select(UserGuardianModel).where(UserGuardianModel.user_id == user.id))).scalars().all()
+    plans = (await db.execute(select(JourneyPlanModel).where(JourneyPlanModel.user_id == user.id))).scalars().all()
+    sessions = (await db.execute(select(SessionModel).where(SessionModel.user_id == user.id))).scalars().all()
+    events = messages = pings = []
+    if sids:
+        events = (await db.execute(select(EventModel).where(EventModel.session_id.in_(sids)))).scalars().all()
+        messages = (await db.execute(select(MessageModel).where(MessageModel.session_id.in_(sids)))).scalars().all()
+        pings = (await db.execute(select(LocationPingModel).where(LocationPingModel.session_id.in_(sids)))).scalars().all()
+    data = {
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "app_version": APP_VERSION,
+        "account": {**user_to_profile_dict(user), "created_at": user.created_at, "consented_at": user.consented_at or ""},
+        "guardians": [guardian_to_dict(g) for g in guardians],
+        "saved_journeys": [plan_to_dict(p) for p in plans],
+        "journeys": [session_to_dict(x) for x in sessions],
+        "events": [{"session_id": e.session_id, "timestamp": e.timestamp, "level": e.level, "message": e.message} for e in events],
+        "messages": [{"session_id": m.session_id, "sender": m.sender, "sender_label": m.sender_label,
+                      "text": m.text, "timestamp": m.timestamp} for m in messages],
+        "location_history": [{"session_id": l.session_id, "lat": l.lat, "lng": l.lng, "timestamp": l.timestamp} for l in pings],
+    }
+    filename = f"guardian-angel-{user.username}-{datetime.now(timezone.utc).date().isoformat()}.json"
+    return JSONResponse(data, headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@app.delete("/api/account")
+@limiter.limit("5/minute")
+async def delete_account(
+    request: Request, body: AccountDelete, response: Response,
+    db: AsyncSession = Depends(get_db), user: UserModel = Depends(get_current_user),
+):
+    if not verify_password(body.password, user.password_hash):
+        raise HTTPException(403, "Incorrect password")
+    uid = user.id
+    sids = await _user_session_ids(db, uid)
+    if sids:
+        for model in (EventModel, MessageModel, LocationPingModel):
+            await db.execute(delete(model).where(model.session_id.in_(sids)))
+        await db.execute(delete(SessionModel).where(SessionModel.session_id.in_(sids)))
+    for model in (UserGuardianModel, JourneyPlanModel, PushSubscriptionModel, AuthSessionModel, PasswordResetModel):
+        await db.execute(delete(model).where(model.user_id == uid))
+    # Where this user was someone else's linked guardian, keep that person's entry but drop the account link.
+    await db.execute(update(UserGuardianModel).where(UserGuardianModel.linked_user_id == uid)
+                     .values(linked_user_id="", linked_username=""))
+    await db.execute(update(FeedbackModel).where(FeedbackModel.user_id == uid).values(user_id="", username=""))
+    await db.execute(delete(UserModel).where(UserModel.id == uid))
+    await db.commit()
+    response.delete_cookie(SESSION_COOKIE_NAME, path="/")
+    print(f"[ACCOUNT] Deleted account {uid}")
+    return {"ok": True}
+
+
+# ── Feedback ──────────────────────────────────
+class FeedbackCreate(BaseModel):
+    message: str
+    rating: Optional[int] = None
+    app_version: str = ""
+
+
+def feedback_email_body(f: FeedbackModel) -> str:
+    stars = "★" * (f.rating or 0) + "☆" * (5 - (f.rating or 0)) if f.rating else "—"
+    return f"""<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;padding:16px;">
+<h2 style="margin:0 0 8px;">💬 New Guardian Angel feedback</h2>
+<p style="margin:0 0 4px;"><strong>From:</strong> {html_lib.escape(f.username or "anonymous")} · <strong>Rating:</strong> {stars}</p>
+<p style="margin:0 0 12px;color:#666;font-size:12px;">{html_lib.escape(f.app_version or "")} · {html_lib.escape(f.user_agent or "")}</p>
+<div style="white-space:pre-wrap;border-left:3px solid #00e5a0;padding:8px 12px;background:#f5f5f5;">{html_lib.escape(f.message)}</div>
+</body></html>"""
+
+
+async def _email_feedback(f: FeedbackModel) -> None:
+    to = os.getenv("FEEDBACK_EMAIL") or os.getenv("SUPPORT_EMAIL") or os.getenv("SMTP_USER", "")
+    if not to:
+        return
+    try:
+        await send_html_email(to, f"💬 Feedback from {f.username or 'a tester'}", feedback_email_body(f))
+    except Exception as exc:
+        print(f"[FEEDBACK EMAIL ERROR] {exc}")
+
+
+@app.post("/api/feedback")
+@limiter.limit("5/minute")
+async def submit_feedback(
+    request: Request, body: FeedbackCreate, db: AsyncSession = Depends(get_db),
+    user: UserModel = Depends(get_current_user),
+):
+    message = body.message.strip()
+    if not message:
+        raise HTTPException(400, "Please write some feedback first")
+    if len(message) > 4000:
+        raise HTTPException(400, "Feedback is too long (max 4000 characters)")
+    if body.rating is not None and not 1 <= body.rating <= 5:
+        raise HTTPException(400, "Rating must be between 1 and 5")
+    f = FeedbackModel(
+        id=str(uuid.uuid4())[:12], user_id=user.id, username=user.username, rating=body.rating,
+        message=message, app_version=(body.app_version or APP_VERSION)[:40],
+        user_agent=request.headers.get("user-agent", "")[:300],
+        created_at=datetime.now(timezone.utc).isoformat(),
+    )
+    db.add(f)
+    await db.commit()
+    asyncio.create_task(_email_feedback(f))
+    return {"ok": True, "id": f.id}
+
+
+@app.get("/api/admin/feedback")
+async def list_feedback(db: AsyncSession = Depends(get_db), _admin: UserModel = Depends(require_admin)):
+    result = await db.execute(select(FeedbackModel).order_by(FeedbackModel.created_at.desc()).limit(200))
+    return [{"id": f.id, "username": f.username or "(deleted account)", "rating": f.rating, "message": f.message,
+             "app_version": f.app_version or "", "user_agent": f.user_agent or "", "created_at": f.created_at}
+            for f in result.scalars().all()]
+
+
+# ── Public pages + client config ──────────────
+@app.get("/privacy", response_class=HTMLResponse)
+def privacy_policy():
+    return HTMLResponse(pages.privacy_page())
+
+
+@app.get("/terms", response_class=HTMLResponse)
+def terms_of_use():
+    return HTMLResponse(pages.terms_page())
+
+
+@app.get("/delete-account", response_class=HTMLResponse)
+def delete_account_info():
+    return HTMLResponse(pages.delete_account_page())
+
+
+@app.get("/config.js")
+def client_config():
+    """Runtime config for the web app (no secrets) — lets one build run in every environment."""
+    cfg = {"appVersion": APP_VERSION, "sentryDsn": SENTRY_DSN, "supportEmail": pages.support_email()}
+    return Response(f"window.GA_CONFIG = {json.dumps(cfg)};", media_type="application/javascript",
+                    headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/.well-known/assetlinks.json")
+def android_asset_links():
+    """Digital Asset Links: proves the Play Store app (Trusted Web Activity) owns this domain, so it opens
+    full-screen without a browser bar. Set ANDROID_PACKAGE_NAME and ANDROID_CERT_SHA256 (comma-separated
+    fingerprints — your upload key and the Play App Signing key, from Play Console → App integrity)."""
+    package = os.getenv("ANDROID_PACKAGE_NAME", "").strip()
+    fingerprints = [f.strip().upper() for f in os.getenv("ANDROID_CERT_SHA256", "").split(",") if f.strip()]
+    if not package or not fingerprints:
+        return JSONResponse([])
+    return JSONResponse([{
+        "relation": ["delegate_permission/common.handle_all_urls"],
+        "target": {"namespace": "android_app", "package_name": package, "sha256_cert_fingerprints": fingerprints},
+    }])
 
 
 PROFILE_PHOTO_MAX_CHARS = 2_000_000  # ~2MB base64 data-URI

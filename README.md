@@ -2,6 +2,15 @@
 
 A "Dead Man's Switch" personal safety app. Server-side escalation engine.
 
+## Production
+
+- **Live site:** https://guardianangel.at (the Android app on Google Play is bound to this domain)
+- **Public pages:** [/privacy](https://guardianangel.at/privacy) · [/terms](https://guardianangel.at/terms) · [/delete-account](https://guardianangel.at/delete-account)
+- **Support:** support@guardianangel.at
+- **Hosting:** Render (web service + Postgres) via [render.yaml](render.yaml)
+- **Launch steps** (deploy, DNS, Android packaging, Play Console, beta testers): [LAUNCH.md](LAUNCH.md)
+- **Store listing text and form answers:** [store/PLAY_LISTING.md](store/PLAY_LISTING.md)
+
 ## Features
 
 - **Trip journeys** — one-off check-ins with a destination, route, coordinates, a Google Maps link, communication method, traveling companions, and a destination country (drives an emergency-number lookup for guardians).
@@ -124,7 +133,7 @@ More features don't move that number. What would matter more is a distribution a
 
 **Originally, this was not safe to publish as a real safety product people rely on:**
 - ~~**No real authentication**~~ — **closed.** Every account-scoped endpoint (`/api/guardians`, `/api/profile`, `/api/sessions`, `/api/guardian-inbox`, `/api/push/subscribe`) now derives identity from an httpOnly, Secure, SameSite=Strict session cookie (`main.py`: `get_current_user`) instead of a client-supplied `user_id` — verified live that the old "just put someone else's id in the request body" trick now gets a 401. Passwords upgraded from unsalted SHA-256 to bcrypt, with existing accounts lazily migrated on their next successful login. `/api/journey/start` deliberately stays usable without an account (by design — you can still be found via the session ID alone), but is always attributed to your real session if you're signed in, never a client-supplied id.
-- **Storage is still ephemeral on the free tier this is deployed to** (SQLite on Render's free tier, no persistent disk) — a routine redeploy still wipes every journey, guardian, and message. **Deferred.**
+- ~~Storage is ephemeral on Render's free tier~~ — **resolved (2026-10-07):** set `DATABASE_URL` to use Postgres; [render.yaml](render.yaml) provisions a persistent database. SQLite is still used locally and in tests.
 - **Still email + WebPush only — no SMS/voice fallback.** For the target users (solo travelers, journalists, duress situations), a missed/delayed email remains the single most likely failure mode. **Deferred.**
 - ~~**No tests, no rate limiting, no security review**~~ — **closed.** A pytest suite (49 tests) now covers the safety-critical logic (safe/duress code branching, DAILY window/day-of-week gating, the journey-can-only-end-once guard, guardian-inbox/consent scoping, case-file access control, admin endpoints, auth). Rate limiting (`slowapi`) throttles `/api/login`, `/api/register`, `/api/checkin`, `/api/message/send`, `/api/location/ping`. CORS is locked to the app's real origin instead of `*`. A `.gitignore` now actually exists. The review also turned up and fixed a stored-XSS gap — user-controlled text was being written straight into `innerHTML` across `index.html` and `guardian.html`; everything user-controlled is now escaped through a shared `esc()` helper.
 - ~~**No guardian consent, plaintext case files, hardcoded emergency numbers, single manual coordinate**~~ — **closed** (Priority 2, below).

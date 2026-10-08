@@ -190,6 +190,19 @@ input[type="datetime-local"]{color-scheme:dark;}
 .g-info{flex:1;min-width:0;}
 .g-name{font-size:13px;font-weight:600;}
 .g-contact{font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:1px;}
+#auth-error.notice{background:#0e1a14 !important;border-color:#1f4a38 !important;color:#a0c8b8 !important;}
+.consent-row{display:flex;gap:10px;align-items:flex-start;font-size:12px;color:var(--muted);line-height:1.5;margin:4px 0 14px;cursor:pointer;}
+.consent-row input{width:18px;height:18px;margin-top:1px;flex-shrink:0;accent-color:var(--accent);}
+.consent-row a,.link-row a,.auth-link{color:var(--accent);}
+.auth-link{display:block;text-align:center;font-size:12px;margin-top:12px;cursor:pointer;text-decoration:underline;}
+.link-row{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;margin-top:4px;}
+.rating-row{display:flex;gap:6px;margin-bottom:10px;}
+.rating-star{font-size:26px;line-height:1;background:none;border:none;color:var(--border);cursor:pointer;padding:2px;}
+.rating-star.on{color:var(--accent3);}
+.danger-zone{border-color:#4a1f24;}
+.feedback-item{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;font-size:12px;}
+.feedback-item .fb-meta{color:var(--muted);font-family:var(--mono);font-size:10px;margin-bottom:6px;}
+.feedback-item .fb-msg{white-space:pre-wrap;line-height:1.5;}
 .verified-badge{display:inline-block;width:15px;height:15px;vertical-align:-2px;margin-left:3px;flex-shrink:0;}
 .btn-verify{padding:6px 12px;border-radius:6px;border:1px solid #1d9bf0;background:transparent;color:#1d9bf0;font-size:11px;font-family:var(--mono);cursor:pointer;white-space:nowrap;}
 .btn-verify:disabled{opacity:.5;cursor:default;}
@@ -295,7 +308,7 @@ input[type="datetime-local"]{color-scheme:dark;}
     <div class="auth-logo">
       <div class="auth-logo-ring"><div class="auth-logo-dot"></div></div>
       <div class="auth-title">Guardian Angel</div>
-      <div class="auth-sub">DEAD MAN'S SWITCH · v1.0-POC</div>
+      <div class="auth-sub" id="auth-version">PERSONAL SAFETY · BETA</div>
     </div>
     <div class="auth-tabs">
       <div class="auth-tab active" id="atab-login" onclick="switchAuthTab('login')">Sign In</div>
@@ -306,12 +319,21 @@ input[type="datetime-local"]{color-scheme:dark;}
       <div class="field"><label>Username</label><input id="auth-username" placeholder="your username" autocomplete="username"/></div>
       <div class="field"><label>Password</label><input id="auth-password" type="password" placeholder="your password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"/></div>
       <button class="btn btn-primary" onclick="doLogin()">Sign In</button>
+      <a class="auth-link" onclick="showForgotPassword(true)">Forgot password?</a>
+    </div>
+    <div id="auth-forgot" style="display:none">
+      <div style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:12px;">Enter your username or email. If your account has an email address, we'll send you a link to choose a new password.</div>
+      <div class="field"><label>Username or email</label><input id="forgot-identifier" placeholder="username or you@example.com" autocomplete="username" onkeydown="if(event.key==='Enter')doForgotPassword()"/></div>
+      <button class="btn btn-primary" id="btn-forgot" onclick="doForgotPassword()">Send Reset Link</button>
+      <a class="auth-link" onclick="showForgotPassword(false)">← Back to sign in</a>
     </div>
     <div id="auth-register" style="display:none">
       <div class="field"><label>Username</label><input id="reg-username" placeholder="choose a username" autocomplete="username"/></div>
-      <div class="field"><label>Password</label><input id="reg-password" type="password" placeholder="choose a password" autocomplete="new-password"/></div>
-      <div class="field"><label>Email <span style="color:var(--muted);font-weight:400;">(optional)</span></label><input id="reg-email" type="email" placeholder="you@example.com" autocomplete="email"/></div>
+      <div class="field"><label>Password</label><input id="reg-password" type="password" placeholder="at least 8 characters" autocomplete="new-password"/></div>
+      <div class="field"><label>Email <span style="color:var(--muted);font-weight:400;">(recommended — needed to reset your password)</span></label><input id="reg-email" type="email" placeholder="you@example.com" autocomplete="email"/></div>
       <div class="field"><label>Why are you using Guardian Angel?</label><input id="reg-reason" placeholder="e.g. Field journalist, solo traveler…" onkeydown="if(event.key==='Enter')doRegister()"/></div>
+      <label class="consent-row"><input type="checkbox" id="reg-consent"/>
+        <span>I agree to the <a href="/terms" target="_blank" rel="noopener">Terms of Use</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>, including the processing of my location and any health details I choose to add. I understand Guardian Angel is <strong>not an emergency service</strong>.</span></label>
       <button class="btn btn-primary" onclick="doRegister()">Create Account</button>
     </div>
   </div>
@@ -322,7 +344,7 @@ input[type="datetime-local"]{color-scheme:dark;}
   <div class="logo-ring"><div class="logo-dot"></div></div>
   <div>
     <div class="hdr-title">Guardian Angel</div>
-    <div class="hdr-sub" id="hdr-sub">DEAD MAN'S SWITCH v1.0-POC</div>
+    <div class="hdr-sub" id="hdr-sub">PERSONAL SAFETY · BETA</div>
   </div>
   <div id="globalBadge" class="status-badge offline">OFFLINE</div>
   <span id="btn-logout" onclick="doLogout()" style="display:none;margin-left:8px;color:var(--muted);font-size:11px;font-family:var(--mono);cursor:pointer;white-space:nowrap;">Log Out</span>
@@ -672,10 +694,10 @@ input[type="datetime-local"]{color-scheme:dark;}
       <div class="card-label">Escalation Ladder</div>
       <div class="ladder" id="ladder">
         <div class="rung done" id="rung0"><span class="rung-icon">✅</span><div class="rung-text"><div class="rung-name">Level 0 — Idle / Safe</div><div class="rung-desc">Timer running, user OK</div></div></div>
-        <div class="rung" id="rung1"><span class="rung-icon">⏰</span><div class="rung-text"><div class="rung-name">Level 1 — Check-in Overdue</div><div class="rung-desc">Push / SMS reminder sent</div></div></div>
+        <div class="rung" id="rung1"><span class="rung-icon">⏰</span><div class="rung-text"><div class="rung-name">Level 1 — Check-in Overdue</div><div class="rung-desc">Push reminder sent to you</div></div></div>
         <div class="rung" id="rung2"><span class="rung-icon">⚠️</span><div class="rung-text"><div class="rung-name">Level 2 — Warning Issued</div><div class="rung-desc">Audio alert & 2nd notification</div></div></div>
-        <div class="rung" id="rung3"><span class="rung-icon">🚨</span><div class="rung-text"><div class="rung-name">Level 3 — Guardian Alert</div><div class="rung-desc">Verified contacts notified</div></div></div>
-        <div class="rung" id="rung4"><span class="rung-icon">🔴</span><div class="rung-text"><div class="rung-name">Level 4 — Authority Dispatch</div><div class="rung-desc">Digital case file sent to authorities</div></div><span class="rung-badge" id="rung4badge" style="display:none">ACTIVE</span></div>
+        <div class="rung" id="rung3"><span class="rung-icon">🚨</span><div class="rung-text"><div class="rung-name">Level 3 — Guardian Alert</div><div class="rung-desc">Your guardians alerted by email</div></div></div>
+        <div class="rung" id="rung4"><span class="rung-icon">🔴</span><div class="rung-text"><div class="rung-name">Level 4 — Critical</div><div class="rung-desc">Guardians urged to contact local authorities · case file prepared</div></div><span class="rung-badge" id="rung4badge" style="display:none">ACTIVE</span></div>
       </div>
     </div>
 
@@ -781,6 +803,44 @@ input[type="datetime-local"]{color-scheme:dark;}
   </div>
 
   <button class="btn btn-primary" onclick="saveProfile()">💾 Save Profile</button>
+
+  <div class="spacer" style="height:24px;"></div>
+  <div class="section-title">Feedback</div>
+  <div class="card">
+    <div class="card-label">💬 Help us improve Guardian Angel</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5;">Tell us what's confusing, what broke, or what you wish it did. We read every message.</div>
+    <div class="rating-row" id="feedback-rating">
+      <button type="button" class="rating-star" onclick="setFeedbackRating(1)" aria-label="1 star">★</button>
+      <button type="button" class="rating-star" onclick="setFeedbackRating(2)" aria-label="2 stars">★</button>
+      <button type="button" class="rating-star" onclick="setFeedbackRating(3)" aria-label="3 stars">★</button>
+      <button type="button" class="rating-star" onclick="setFeedbackRating(4)" aria-label="4 stars">★</button>
+      <button type="button" class="rating-star" onclick="setFeedbackRating(5)" aria-label="5 stars">★</button>
+    </div>
+    <textarea id="feedback-message" rows="4" maxlength="4000" placeholder="Your feedback…" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:11px 14px;color:var(--text);font-family:var(--sans);font-size:14px;resize:vertical;"></textarea>
+    <div class="spacer" style="height:10px;"></div>
+    <button class="btn btn-ghost" id="btn-feedback" onclick="sendFeedback()">Send Feedback</button>
+  </div>
+
+  <div class="spacer" style="height:12px;"></div>
+  <div class="section-title">Account</div>
+  <div class="card">
+    <div class="card-label">Your data</div>
+    <button class="btn btn-ghost" onclick="downloadMyData()">⬇ Download My Data</button>
+    <div class="spacer" style="height:12px;"></div>
+    <div class="link-row">
+      <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>
+      <a href="/terms" target="_blank" rel="noopener">Terms of Use</a>
+      <a id="support-link" href="#">Contact support</a>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:12px;font-family:var(--mono);" id="app-version-label"></div>
+  </div>
+  <div class="card danger-zone">
+    <div class="card-label" style="color:var(--accent2);">Delete account</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5;">Permanently deletes your profile, guardians, saved and past journeys, messages and location history. Any running journey stops being monitored. This can't be undone.</div>
+    <input id="delete-account-password" type="password" placeholder="Confirm with your password" autocomplete="current-password"/>
+    <div class="spacer" style="height:10px;"></div>
+    <button class="btn btn-danger" onclick="deleteMyAccount()">Delete My Account</button>
+  </div>
 </div>
 
 <!-- ══ INBOX TAB (sessions where I'm a linked guardian) ══ -->
@@ -831,7 +891,7 @@ input[type="datetime-local"]{color-scheme:dark;}
     <button class="btn btn-warn" onclick="loadCaseFile()">📁 Load Case File</button>
   </div>
   <div id="case-file-display" style="display:none" class="card">
-    <div class="card-label" style="color:var(--accent2);">🔴 Digital Case File — Authority Copy</div>
+    <div class="card-label" style="color:var(--accent2);">🔴 Digital Case File</div>
     <div class="case-grid" id="case-grid"></div>
   </div>
 
@@ -846,6 +906,11 @@ input[type="datetime-local"]{color-scheme:dark;}
     </div>
   </div>
   <div id="emergency-numbers-list"></div>
+
+  <div class="spacer"></div>
+  <div class="section-title">Tester Feedback</div>
+  <button class="btn btn-ghost" style="margin-bottom:14px;" onclick="loadFeedback()">↻ Refresh</button>
+  <div id="feedback-list"><div class="empty-state">No feedback yet.</div></div>
 </div>
 
 <!-- ══ LOG TAB ══ -->
@@ -889,6 +954,7 @@ input[type="datetime-local"]{color-scheme:dark;}
 <!-- Toast -->
 <div id="toast"></div>
 
+<script src="/config.js"></script>
 <script>
 const API = '';
 
@@ -984,7 +1050,7 @@ const AP_META = {
   1: { color:'#6ec6ff', tag:'LEVEL 1 — OVERDUE',  icon:'⏰', title:'Check-In Overdue',    body:'Your safety timer has expired. Check in now to reset it and let your guardians know you are safe.' },
   2: { color:'#ffd32a', tag:'LEVEL 2 — WARNING',  icon:'⚠️', title:'Warning Issued',       body:'You have missed multiple check-ins. Your guardians are receiving warnings. Check in immediately.' },
   3: { color:'#ff8c42', tag:'LEVEL 3 — ALERT',    icon:'🚨', title:'Guardian Alert Sent',  body:'Your guardians have been contacted. They may be calling authorities. Check in or contact them now.' },
-  4: { color:'#ff4757', tag:'LEVEL 4 — CRITICAL', icon:'🔴', title:'Authority Dispatch',   body:'All contact attempts exhausted. Authorities have been alerted and a digital case file has been generated.' },
+  4: { color:'#ff4757', tag:'LEVEL 4 — CRITICAL', icon:'🔴', title:'Critical Alert',       body:'All check-ins were missed. Your guardians have been urged to contact local authorities and a case file has been prepared. If you are safe, check in now. In an emergency, call your local emergency number.' },
 };
 
 function showAlertPopup(data) {
@@ -1117,7 +1183,7 @@ function switchTab(name) {
   if (name === 'profile')   loadProfile();
   if (name === 'inbox')     showInboxView('list');
   if (name === 'log')       loadLog();
-  if (name === 'monitor')   { loadSessions(); loadEmergencyNumbers(); }
+  if (name === 'monitor')   { loadSessions(); loadEmergencyNumbers(); loadFeedback(); }
 }
 
 function showView(view) {
@@ -1289,6 +1355,7 @@ function showAuthError(msg) {
 function clearAuthError() {
   const el = document.getElementById('auth-error');
   el.style.display = 'none';
+  el.classList.remove('notice');
   el.textContent = '';
 }
 function switchAuthTab(tab) {
@@ -1296,7 +1363,29 @@ function switchAuthTab(tab) {
   document.getElementById('atab-register').classList.toggle('active', tab === 'register');
   document.getElementById('auth-login').style.display    = tab === 'login'    ? '' : 'none';
   document.getElementById('auth-register').style.display = tab === 'register' ? '' : 'none';
+  document.getElementById('auth-forgot').style.display   = 'none';
   clearAuthError();
+}
+function showForgotPassword(show) {
+  document.getElementById('auth-login').style.display  = show ? 'none' : '';
+  document.getElementById('auth-forgot').style.display = show ? '' : 'none';
+  if (show) document.getElementById('forgot-identifier').value = document.getElementById('auth-username').value.trim();
+  clearAuthError();
+}
+async function doForgotPassword() {
+  clearAuthError();
+  const identifier = document.getElementById('forgot-identifier').value.trim();
+  if (!identifier) { showAuthError('Enter your username or email'); return; }
+  const btn = document.getElementById('btn-forgot');
+  btn.disabled = true;
+  try {
+    const r = await api('/api/password/forgot', 'POST', { identifier });
+    showForgotPassword(false);
+    toast('Check your email for a reset link');
+    showAuthError(r.message);  // reuse the notice area; same wording whether or not the account exists
+    document.getElementById('auth-error').classList.add('notice');  // informational, not an error
+  } catch(e) { showAuthError(e.message || 'Could not send reset link'); }
+  finally { btn.disabled = false; }
 }
 async function doLogin() {
   clearAuthError();
@@ -1315,9 +1404,12 @@ async function doRegister() {
   const password = document.getElementById('reg-password').value;
   const email    = document.getElementById('reg-email').value.trim();
   const reason   = document.getElementById('reg-reason').value.trim();
+  const accept_terms = document.getElementById('reg-consent').checked;
   if (!username || !password) { showAuthError('Username and password required'); return; }
+  if (password.length < 8) { showAuthError('Password must be at least 8 characters'); return; }
+  if (!accept_terms) { showAuthError('Please accept the Terms of Use and Privacy Policy'); return; }
   try {
-    const user = await api('/api/register', 'POST', { username, password, email, reason });
+    const user = await api('/api/register', 'POST', { username, password, email, reason, accept_terms });
     setUser(user);
     toast(`Account created. Welcome, ${user.username}!`);
   } catch(e) { showAuthError(e.message || 'Could not create account'); }
@@ -1331,10 +1423,9 @@ async function doLogout() {
   stopPolling();
   document.getElementById('btn-logout').style.display = 'none';
   document.getElementById('auth-overlay').style.display = 'flex';
+  switchAuthTab('login');
   toast('Signed out');
 }
-
-const ADMIN_USERS = ['AAH_Test_02', 'test_aah'];
 
 function setUser(user) {
   currentUser = user;
@@ -1342,8 +1433,7 @@ function setUser(user) {
   document.getElementById('auth-overlay').style.display = 'none';
   document.getElementById('inp-name').value = user.username;
   document.getElementById('hdr-sub').textContent = `SIGNED IN AS ${user.username.toUpperCase()}`;
-  document.getElementById('tab-monitor-btn').style.display =
-    ADMIN_USERS.includes(user.username) ? '' : 'none';
+  document.getElementById('tab-monitor-btn').style.display = user.is_admin ? '' : 'none';
   document.getElementById('btn-logout').style.display = 'inline';
   loadHomeJourneys();
   loadSavedGuardians();
@@ -2252,7 +2342,8 @@ function updateTimer() {
   arc.style.strokeDashoffset = 408 * (1 - pct);
   numEl.textContent = `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
   arc.className = pct > 0.5 ? 'timer-arc' : pct > 0.2 ? 'timer-arc warn' : 'timer-arc danger';
-  lblEl.textContent = 'remaining';
+  const due = new Date(currentSession.nextCheckin).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  lblEl.textContent = diff > 0 ? `Check in by ${due}` : `Check-in overdue since ${due}`;
 }
 async function pollSession(silent) {
   if (!currentSession) return;
@@ -2526,6 +2617,105 @@ async function sendTestEmail(email) {
   } catch(e) { toast(e.message || 'Test email failed', 'err'); }
 }
 
+// ── FEEDBACK & ACCOUNT ────────────────────
+const APP_CONFIG = window.GA_CONFIG || { appVersion: '', sentryDsn: '', supportEmail: '' };
+let feedbackRating = null;
+
+function setFeedbackRating(n) {
+  feedbackRating = feedbackRating === n ? null : n;
+  document.querySelectorAll('#feedback-rating .rating-star')
+    .forEach((el, i) => el.classList.toggle('on', feedbackRating !== null && i < feedbackRating));
+}
+
+async function sendFeedback() {
+  const message = document.getElementById('feedback-message').value.trim();
+  if (!message) { toast('Write your feedback first', 'err'); return; }
+  const btn = document.getElementById('btn-feedback');
+  btn.disabled = true;
+  try {
+    await api('/api/feedback', 'POST', { message, rating: feedbackRating, app_version: APP_CONFIG.appVersion });
+    document.getElementById('feedback-message').value = '';
+    setFeedbackRating(feedbackRating);  // toggles off
+    toast('Thank you — feedback sent 💚');
+  } catch(e) { toast(e.message || 'Could not send feedback', 'err'); }
+  finally { btn.disabled = false; }
+}
+
+async function downloadMyData() {
+  try {
+    const r = await fetch('/api/account/export', { credentials: 'include' });
+    if (!r.ok) throw new Error('Could not export your data');
+    const blob = await r.blob();
+    const name = (r.headers.get('content-disposition') || '').match(/filename="([^"]+)"/)?.[1] || 'guardian-angel-data.json';
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: name });
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+async function deleteMyAccount() {
+  const password = document.getElementById('delete-account-password').value;
+  if (!password) { toast('Enter your password to confirm', 'err'); return; }
+  if (!confirm('Permanently delete your account and all your data? This cannot be undone.')) return;
+  try {
+    await api('/api/account', 'DELETE', { password });
+    document.getElementById('delete-account-password').value = '';
+    currentUser = null;
+    currentSession = null;
+    sessionStorage.removeItem('ga_user');
+    stopPolling();
+    document.getElementById('btn-logout').style.display = 'none';
+    document.getElementById('auth-overlay').style.display = 'flex';
+  switchAuthTab('login');
+    toast('Your account has been deleted');
+  } catch(e) { toast(e.message || 'Could not delete account', 'err'); }
+}
+
+async function loadFeedback() {
+  const el = document.getElementById('feedback-list');
+  try {
+    const items = await api('/api/admin/feedback');
+    el.innerHTML = items.length ? items.map(f => `
+      <div class="feedback-item">
+        <div class="fb-meta">${esc(new Date(f.created_at).toLocaleString())} · ${esc(f.username)}${f.rating ? ' · ' + '★'.repeat(f.rating) : ''} · ${esc(f.app_version)}</div>
+        <div class="fb-msg">${esc(f.message)}</div>
+      </div>`).join('') : '<div class="empty-state">No feedback yet.</div>';
+  } catch(e) { el.innerHTML = `<div class="empty-state">${esc(e.message)}</div>`; }
+}
+
+function applyAppConfig() {
+  const v = APP_CONFIG.appVersion ? `v${APP_CONFIG.appVersion}` : '';
+  document.getElementById('app-version-label').textContent = v ? `Guardian Angel ${v}` : '';
+  if (v) document.getElementById('auth-version').textContent = `PERSONAL SAFETY · ${v.toUpperCase()}`;
+  const support = document.getElementById('support-link');
+  if (APP_CONFIG.supportEmail) support.href = `mailto:${APP_CONFIG.supportEmail}?subject=${encodeURIComponent('Guardian Angel support')}`;
+  else support.style.display = 'none';
+  // Launched from the Play Store app (Trusted Web Activity)?
+  const isTwa = document.referrer.startsWith('android-app://') || sessionStorage.getItem('ga_twa') === '1';
+  if (isTwa) { sessionStorage.setItem('ga_twa', '1'); document.body.classList.add('in-app'); }
+}
+
+// Home-screen shortcuts (manifest "shortcuts") open /?action=… — jump straight there, then tidy the URL.
+function handleLaunchAction() {
+  const action = new URLSearchParams(location.search).get('action');
+  if (action === 'new-journey') { switchTab('home'); newJourney(); }
+  if (action === 'checkin')     switchTab('checkin');
+  if (action) history.replaceState(null, '', '/');
+}
+
+// Error monitoring — only when the server is configured with a Sentry DSN. No personal data is sent.
+function initErrorMonitoring() {
+  if (!APP_CONFIG.sentryDsn) return;
+  const s = document.createElement('script');
+  s.src = 'https://browser.sentry-cdn.com/8.38.0/bundle.min.js';
+  s.crossOrigin = 'anonymous';
+  s.onload = () => window.Sentry && Sentry.init({
+    dsn: APP_CONFIG.sentryDsn, release: `guardian-angel@${APP_CONFIG.appVersion}`,
+    sendDefaultPii: false, tracesSampleRate: 0,
+  });
+  document.head.appendChild(s);
+}
+
 // ── SAFETY READINESS PROGRESS ─────────────
 // Each item adds its weight (weights per form sum to 100) once filled in. Unfilled items
 // are offered as tips, biggest gain first; tapping one jumps to the field that fixes it.
@@ -2617,11 +2807,14 @@ function updateDailyProgress()   { renderProgress('daily', dailyReadinessItems()
 // ── INIT ──────────────────────────────────
 (async function init() {
   registerServiceWorker();  // register SW as early as possible
+  applyAppConfig();
+  initErrorMonitoring();
   // The session lives in an httpOnly cookie now, not in anything JS can read — sessionStorage
   // is just a display cache, so always re-verify against the server before trusting it.
   try {
     const me = await api('/api/me');
     setUser(me);
+    handleLaunchAction();
   } catch (e) {
     sessionStorage.removeItem('ga_user');
   }
