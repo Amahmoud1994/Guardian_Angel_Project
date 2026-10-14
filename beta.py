@@ -30,8 +30,8 @@ GUARDIAN = {
     "no":    "No",
 }
 FEEDBACK = {
-    "call":   "Short survey + a 15-minute video call",
-    "survey": "Short written survey only",
+    "survey": "A short written survey after one week (plus feedback in the app)",
+    "in_app": "Feedback messages in the app whenever something comes up",
     "none":   "I'd rather just use the app",
 }
 PLATFORMS = {
@@ -58,7 +58,7 @@ def score(a: dict) -> int:
                + (3 if "other" in uses else 0))
     pts += {"weekly": 25, "few": 20, "once": 10, "none": 0}.get(a.get("trip_frequency"), 0)
     pts += {"yes": 20, "maybe": 10}.get(a.get("guardian"), 0)
-    pts += {"call": 20, "survey": 12}.get(a.get("feedback"), 0)
+    pts += {"survey": 20, "in_app": 12}.get(a.get("feedback"), 0)
     motivation = (a.get("motivation") or "").strip()
     pts += 10 if len(motivation) >= 60 else 5 if len(motivation) >= 20 else 0
     return min(100, pts)
