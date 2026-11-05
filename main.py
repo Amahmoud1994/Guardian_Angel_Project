@@ -786,6 +786,21 @@ async def get_sender_label(s: SessionModel) -> str:
     return f"user {s.user_name}"
 
 
+def _e(value) -> str:
+    """HTML-escape anything user-controlled before it goes into an email."""
+    return html_lib.escape(str(value)) if value is not None else ""
+
+
+def _header_safe(value, limit: int = 80) -> str:
+    """Single-line, bounded text for email subjects (no header injection via newlines)."""
+    return " ".join(str(value or "").split())[:limit]
+
+
+def _safe_url(url: Optional[str]) -> str:
+    url = (url or "").strip()
+    return url if url.lower().startswith(("https://", "http://")) else ""
+
+
 def build_email_body(level: int, s: SessionModel, sent_by: str, message_text: Optional[str] = None) -> str:
     level_info = {
         1: ("#6ec6ff", "⏰ Check-in Overdue",    "The user has missed their scheduled check-in. Please try to contact them."),
@@ -798,22 +813,22 @@ def build_email_body(level: int, s: SessionModel, sent_by: str, message_text: Op
     coords = f"{s.latitude}, {s.longitude}" if (s.latitude or s.longitude) else None
 
     rows = [
-        ("Person",          f"<strong>{s.user_name}</strong>"),
-        ("Sent By",         sent_by),
-        ("Destination",     s.destination),
-        ("Journey Started", f"<span style='font-family:monospace;font-size:11px;'>{s.started_at}</span>"),
-        ("Last Check-In",   f"<span style='font-family:monospace;font-size:11px;'>{s.last_checkin or 'Never'}</span>"),
+        ("Person",          f"<strong>{_e(s.user_name)}</strong>"),
+        ("Sent By",         _e(sent_by)),
+        ("Destination",     _e(s.destination)),
+        ("Journey Started", f"<span style='font-family:monospace;font-size:11px;'>{_e(s.started_at)}</span>"),
+        ("Last Check-In",   f"<span style='font-family:monospace;font-size:11px;'>{_e(s.last_checkin or 'Never')}</span>"),
         ("Unresponsive For", f"<strong style='color:{color};'>{unresponsive_duration(s, now)}</strong>"),
-        ("Last Location",   s.last_location or "Unknown"),
+        ("Last Location",   _e(s.last_location or "Unknown")),
     ]
     if coords:
-        rows.append(("Coordinates", f"<span style='font-family:monospace;'>{coords}</span>"))
-    if s.maps_link:
-        rows.append(("Google Maps", f"<a href='{s.maps_link}' style='color:{color};'>Open location →</a>"))
+        rows.append(("Coordinates", f"<span style='font-family:monospace;'>{_e(coords)}</span>"))
+    if _safe_url(s.maps_link):
+        rows.append(("Google Maps", f"<a href='{_e(_safe_url(s.maps_link))}' style='color:{color};'>Open location →</a>"))
     if s.route:
-        rows.append(("Planned Route", s.route))
+        rows.append(("Planned Route", _e(s.route)))
     if s.communication_method:
-        rows.append(("Communication Method", s.communication_method))
+        rows.append(("Communication Method", _e(s.communication_method)))
     rows.append(("Alert Level", f"<span style='color:{color};font-weight:bold;font-family:monospace;'>LEVEL {level} — {LEVEL_DISPLAY_NAMES.get(level,'')}</span>"))
 
     rows_html = "".join(
@@ -824,9 +839,9 @@ def build_email_body(level: int, s: SessionModel, sent_by: str, message_text: Op
 
     def contact_list_block(label, items, get_name, get_contact, get_email=None):
         html = "".join(
-            f"<li style='margin:4px 0;color:#a0b4c0;'>{get_name(x)} "
-            f"{'· ' + get_contact(x) if get_contact(x) else ''} "
-            f"{'· ' + get_email(x) if get_email and get_email(x) else ''}</li>"
+            f"<li style='margin:4px 0;color:#a0b4c0;'>{_e(get_name(x))} "
+            f"{'· ' + _e(get_contact(x)) if get_contact(x) else ''} "
+            f"{'· ' + _e(get_email(x)) if get_email and get_email(x) else ''}</li>"
             for x in items
         )
         if not html:
@@ -854,7 +869,7 @@ def build_email_body(level: int, s: SessionModel, sent_by: str, message_text: Op
         emergency_number = get_emergency_number(s.country or "")
         emergency_line = (
             f"<p style='margin:10px 0 0;font-size:13px;color:#ffb3b3;'>Local emergency number"
-            f"{' for ' + s.country if s.country else ''}: <strong style='font-family:monospace;font-size:16px;'>{emergency_number}</strong></p>"
+            f"{' for ' + _e(s.country) if s.country else ''}: <strong style='font-family:monospace;font-size:16px;'>{_e(emergency_number)}</strong></p>"
             if emergency_number else
             f"<p style='margin:10px 0 0;font-size:12px;color:#a0b4c0;'>Destination country not on file — please look up the local emergency number before calling.</p>"
         )
@@ -862,7 +877,7 @@ def build_email_body(level: int, s: SessionModel, sent_by: str, message_text: Op
     <div style="margin-top:16px;padding:16px;background:#1f0e0e;border-radius:8px;border:1px solid {color};">
       <p style="margin:0;font-size:13px;font-weight:bold;color:{color};">ACTION NEEDED</p>
       <p style="margin:8px 0 0;font-size:13px;color:#e8eef2;line-height:1.6;">
-        Please try to reach <strong>{s.user_name}</strong> directly right away. If you cannot reach them,
+        Please try to reach <strong>{_e(s.user_name)}</strong> directly right away. If you cannot reach them,
         please contact the local authorities at the destination and share the details in this email
         (last known location, coordinates, and how long they've been unresponsive).
       </p>
@@ -873,8 +888,8 @@ def build_email_body(level: int, s: SessionModel, sent_by: str, message_text: Op
     if message_text:
         message_block = f"""
     <div style="margin-top:16px;padding:14px 16px;background:#0e1a14;border-radius:8px;border:1px solid #1f4a38;">
-      <p style="margin:0 0 6px;font-size:11px;color:#5a7080;letter-spacing:1px;text-transform:uppercase;">💬 Message from {s.user_name}</p>
-      <p style="margin:0;font-size:14px;color:#e8eef2;line-height:1.6;font-style:italic;">"{message_text}"</p>
+      <p style="margin:0 0 6px;font-size:11px;color:#5a7080;letter-spacing:1px;text-transform:uppercase;">💬 Message from {_e(s.user_name)}</p>
+      <p style="margin:0;font-size:14px;color:#e8eef2;line-height:1.6;font-style:italic;">"{_e(message_text)}"</p>
     </div>"""
 
     reply_url = f"{APP_BASE_URL}/guardian/{s.session_id}"
@@ -904,7 +919,7 @@ def build_email_body(level: int, s: SessionModel, sent_by: str, message_text: Op
   </div>
   <div style="background:#111518;padding:14px 24px;border-top:1px solid #1f2a30;text-align:center;">
     <p style="margin:0;font-size:11px;color:#5a7080;">Guardian Angel · Automated Safety System</p>
-    <p style="margin:4px 0 0;font-size:10px;color:#3a5060;font-family:monospace;">Session: {s.session_id}</p>
+    <p style="margin:4px 0 0;font-size:10px;color:#3a5060;font-family:monospace;">Session: {_e(s.session_id)}</p>
   </div>
 </div>
 </body></html>"""
@@ -926,11 +941,12 @@ async def send_alert_emails(s: SessionModel, level: int, message_text: Optional[
         print(f"[EMAIL] SMTP not configured — skipping Level {level} alert")
         return
 
+    who = _header_safe(s.user_name)
     subjects = {
-        1: f"⏰ Check-in Overdue — {s.user_name}",
-        2: f"⚠️ Warning: No Response from {s.user_name}",
-        3: f"🚨 URGENT: Guardian Alert for {s.user_name}",
-        4: f"🔴 CRITICAL: {s.user_name} May Be in Danger — Please Contact Authorities",
+        1: f"⏰ Check-in Overdue — {who}",
+        2: f"⚠️ Warning: No Response from {who}",
+        3: f"🚨 URGENT: Guardian Alert for {who}",
+        4: f"🔴 CRITICAL: {who} May Be in Danger — Please Contact Authorities",
     }
     subject = subjects.get(level, f"Guardian Angel Alert — Level {level}")
     sent_by = await get_sender_label(s)
@@ -972,7 +988,7 @@ async def send_message_email(s: SessionModel, text: str) -> None:
         print("[EMAIL] SMTP not configured — skipping message notification")
         return
 
-    subject   = f"💬 {s.user_name} is safe — sent you a message"
+    subject   = f"💬 {_header_safe(s.user_name)} is safe — sent you a message"
     reply_url = f"{APP_BASE_URL}/guardian/{s.session_id}"
     body = f"""<!DOCTYPE html><html>
 <body style="margin:0;padding:20px;font-family:Arial,sans-serif;background:#0a0d0f;color:#e8eef2;">
@@ -983,10 +999,10 @@ async def send_message_email(s: SessionModel, text: str) -> None:
   </div>
   <div style="padding:20px 24px;">
     <p style="margin:0 0 12px;font-size:14px;">
-      <strong>{s.user_name}</strong> checked in safe and sent you a message:
+      <strong>{_e(s.user_name)}</strong> checked in safe and sent you a message:
     </p>
     <div style="padding:14px 16px;background:#0e1a14;border-radius:8px;border:1px solid #1f4a38;">
-      <p style="margin:0;font-size:14px;color:#e8eef2;line-height:1.6;font-style:italic;">"{text}"</p>
+      <p style="margin:0;font-size:14px;color:#e8eef2;line-height:1.6;font-style:italic;">"{_e(text)}"</p>
     </div>
     <div style="margin-top:20px;text-align:center;">
       <a href="{reply_url}" style="display:inline-block;padding:10px 20px;border-radius:8px;background:#00e5a0;color:#0a0d0f;font-weight:bold;text-decoration:none;font-size:13px;">View Details &amp; Reply →</a>
@@ -1317,14 +1333,14 @@ ICON_NAME_RE = re.compile(r"[A-Za-z0-9_-]+\.png")
 #  API Routes
 # ─────────────────────────────────────────────
 @app.post("/api/journey/start")
+@limiter.limit("10/minute")
 async def start_journey(
-    body: JourneyStart, db: AsyncSession = Depends(get_db),
-    user: Optional[UserModel] = Depends(get_current_user_optional),
+    request: Request, body: JourneyStart, db: AsyncSession = Depends(get_db),
+    user: UserModel = Depends(get_current_user),
 ):
-    # Starting a journey doesn't require an account (kept intentionally anonymous-capable —
-    # you can still be found via the session_id itself) — but if you ARE signed in, the
-    # journey is always attributed to your real account, never a client-supplied id.
-    s = await create_session(db, body, user.id if user else "")
+    # A signed-in account is required: journeys email their guardians, so an open endpoint would
+    # let anyone on the internet make the app send alert emails to arbitrary addresses.
+    s = await create_session(db, body, user.id)
     return journey_started_response(s, body)
 
 
@@ -1335,8 +1351,34 @@ def journey_started_response(s: SessionModel, body: JourneyStart) -> dict:
     }
 
 
+JOURNEY_TEXT_LIMITS = {"user_name": 80, "destination": 200, "maps_link": 500, "latitude": 32, "longitude": 32,
+                       "route": 500, "communication_method": 120, "country": 80, "safe_code": 40, "duress_code": 40}
+MAX_GUARDIANS_PER_JOURNEY = 10
+MAX_COMPANIONS_PER_JOURNEY = 10
+
+
+def validate_journey_limits(body: JourneyStart) -> None:
+    """Reject absurd inputs (giant fields, hundreds of email recipients) before they reach the DB or emails."""
+    for field, limit in JOURNEY_TEXT_LIMITS.items():
+        if len(getattr(body, field) or "") > limit:
+            raise HTTPException(400, f"{field.replace('_', ' ').capitalize()} is too long (max {limit} characters)")
+    if len(body.guardians) > MAX_GUARDIANS_PER_JOURNEY:
+        raise HTTPException(400, f"A journey can have at most {MAX_GUARDIANS_PER_JOURNEY} guardians")
+    if len(body.companions) > MAX_COMPANIONS_PER_JOURNEY:
+        raise HTTPException(400, f"A journey can have at most {MAX_COMPANIONS_PER_JOURNEY} companions")
+    for g in body.guardians:
+        if len(g.name) > 80 or len(g.contact) > 120 or len(g.email) > 120:
+            raise HTTPException(400, "Guardian details are too long")
+        if g.email.strip() and not beta.EMAIL_RE.match(g.email.strip()):
+            raise HTTPException(400, f"Guardian email looks invalid: {g.email.strip()[:60]}")
+    for c in body.companions:
+        if len(c.name) > 80 or len(c.contact) > 120:
+            raise HTTPException(400, "Companion details are too long")
+
+
 async def create_session(db: AsyncSession, body: JourneyStart, owner_id: str) -> SessionModel:
     """Create, log and commit a new monitored session — shared by direct starts and saved journeys."""
+    validate_journey_limits(body)
     if body.session_type == "DAILY" and not body.windows:
         raise HTTPException(400, "Daily Usage requires at least one active window")
 
@@ -1414,6 +1456,7 @@ def validate_plan_journey(j: JourneyStart) -> None:
         raise HTTPException(400, "Only trips can be saved as journeys")
     if not j.user_name.strip() or not j.destination.strip():
         raise HTTPException(400, "Name and destination are required")
+    validate_journey_limits(j)
 
 
 async def get_own_plan(db: AsyncSession, plan_id: str, user: UserModel) -> JourneyPlanModel:
@@ -1626,7 +1669,9 @@ async def send_message(request: Request, body: MessageSend, db: AsyncSession = D
 
 
 @app.post("/api/message/guardian-reply")
-async def guardian_reply(body: GuardianReply, db: AsyncSession = Depends(get_db)):
+@limiter.limit("20/minute")
+async def guardian_reply(request: Request, body: GuardianReply, db: AsyncSession = Depends(get_db),
+                         viewer: Optional[UserModel] = Depends(get_current_user_optional)):
     result = await db.execute(select(SessionModel).where(SessionModel.session_id == body.session_id))
     s = result.scalar_one_or_none()
     if not s:
@@ -1636,14 +1681,18 @@ async def guardian_reply(body: GuardianReply, db: AsyncSession = Depends(get_db)
     if not text:
         raise HTTPException(400, "Message text is required")
 
-    label = body.guardian_name.strip() or "A guardian"
-    if body.guardian_user_id.strip():
-        # Trust the logged-in account's real username over any typed name — same
-        # client-trusted user_id model already used everywhere else in this app.
-        result = await db.execute(select(UserModel).where(UserModel.id == body.guardian_user_id.strip()))
-        linked_user = result.scalar_one_or_none()
-        if linked_user:
-            label = linked_user.username
+    if len(text) > 2000:
+        raise HTTPException(400, "Message is too long (max 2000 characters)")
+
+    label = body.guardian_name.strip()[:60] or "A guardian"
+    # Use an account name only when the *logged-in* user really is this traveler's confirmed guardian.
+    # (The client-supplied guardian_user_id is ignored — it could name anyone.)
+    if viewer and s.user_id and viewer.id != s.user_id:
+        linked = (await db.execute(select(UserGuardianModel.id).where(
+            UserGuardianModel.user_id == s.user_id, UserGuardianModel.linked_user_id == viewer.id,
+            UserGuardianModel.status == "accepted"))).first()
+        if linked:
+            label = viewer.username
 
     await store_message(db, s.session_id, "guardian", label, text)
     if s.user_id:
@@ -1667,12 +1716,15 @@ LOCATION_HISTORY_LIMIT = 200
 
 @app.post("/api/location/ping")
 @limiter.limit("30/minute")
-async def location_ping(request: Request, body: LocationPing, db: AsyncSession = Depends(get_db)):
-    """Passive GPS telemetry from the app while a session is active — not a trust action
-    (no code required), just live tracking. Adaptive ping frequency is a client concern."""
+async def location_ping(request: Request, body: LocationPing, db: AsyncSession = Depends(get_db),
+                        user: UserModel = Depends(get_current_user)):
+    """Passive GPS telemetry from the owner's app while a session is active (no code required, but it
+    must come from the owner's own account — otherwise anyone with the link could plant fake locations)."""
+    if not (-90 <= body.lat <= 90 and -180 <= body.lng <= 180):
+        raise HTTPException(400, "Invalid coordinates")
     result = await db.execute(select(SessionModel).where(SessionModel.session_id == body.session_id))
     s = result.scalar_one_or_none()
-    if not s:
+    if not s or not is_session_owner(s, user):
         raise HTTPException(404, "Session not found")
     if s.status == "ENDED":
         raise HTTPException(400, "Journey already ended")
@@ -1774,11 +1826,15 @@ def serve_guardian_page(session_id: str):
 
 
 @app.post("/api/journey/end")
-async def end_journey(session_id: str, db: AsyncSession = Depends(get_db)):
+async def end_journey(session_id: str, db: AsyncSession = Depends(get_db),
+                      user: UserModel = Depends(get_current_user)):
     result = await db.execute(select(SessionModel).where(SessionModel.session_id == session_id))
     s = result.scalar_one_or_none()
     if not s:
         raise HTTPException(404, "Session not found")
+    # Ending a journey switches off its safety alerts — never allow that from just a leaked link.
+    if not is_session_owner(s, user) and user.username not in ADMIN_USERNAMES:
+        raise HTTPException(403, "Only the person on this journey can end it")
     if s.status == "ENDED":
         raise HTTPException(400, "Journey already ended")
     s.status = "ENDED"
@@ -1788,20 +1844,54 @@ async def end_journey(session_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @app.get("/api/session/{session_id}")
-async def get_session(session_id: str, db: AsyncSession = Depends(get_db)):
+async def get_session(session_id: str, db: AsyncSession = Depends(get_db),
+                      viewer: Optional[UserModel] = Depends(get_current_user_optional)):
     result = await db.execute(select(SessionModel).where(SessionModel.session_id == session_id))
     s = result.scalar_one_or_none()
     if not s:
         raise HTTPException(404, "Session not found")
-    return session_to_dict(s)
+    d = session_to_dict(s)
+    # Anyone holding the session link (guardians, people they forward the alert email to) sees the
+    # trip details they need — but never the safe/duress codes or other people's contact details.
+    if not is_session_owner(s, viewer):
+        d = public_session_view(d)
+    return d
+
+
+def is_session_owner(s: SessionModel, user: Optional[UserModel]) -> bool:
+    return bool(user and s.user_id and s.user_id == user.id)
+
+
+PRIVATE_SESSION_FIELDS = ("safe_code", "duress_code", "user_id")
+
+
+def public_session_view(d: dict) -> dict:
+    d = {k: v for k, v in d.items() if k not in PRIVATE_SESSION_FIELDS}
+    d["guardians"] = [{"name": g.get("name", "")} for g in d.get("guardians") or [] if isinstance(g, dict)]
+    d["companions"] = [{"name": c.get("name", "")} for c in d.get("companions") or [] if isinstance(c, dict)]
+    return d
 
 
 @app.get("/api/events")
-async def get_events(session_id: Optional[str] = None, db: AsyncSession = Depends(get_db)):
+async def get_events(session_id: Optional[str] = None, db: AsyncSession = Depends(get_db),
+                     user: UserModel = Depends(get_current_user)):
+    is_admin = user.username in ADMIN_USERNAMES
     if session_id:
+        if not is_admin:
+            owned = (await db.execute(select(SessionModel.session_id).where(
+                SessionModel.session_id == session_id, SessionModel.user_id == user.id))).first()
+            if not owned:
+                raise HTTPException(404, "Session not found")
         q = select(EventModel).where(EventModel.session_id == session_id).order_by(EventModel.timestamp.desc())
-    else:
+    elif is_admin:
         q = select(EventModel).order_by(EventModel.timestamp.desc()).limit(50)
+    else:
+        own_ids = select(SessionModel.session_id).where(SessionModel.user_id == user.id)
+        q = select(EventModel).where(EventModel.session_id.in_(own_ids)).order_by(EventModel.timestamp.desc()).limit(50)
+    if not is_admin:
+        # A silent duress event must never be visible on the user's own screen — someone
+        # forcing them to unlock the phone would see it.
+        q = q.where(EventModel.silent.is_(False) | EventModel.silent.is_(None))
     result = await db.execute(q)
     events = result.scalars().all()
     return [
@@ -1821,10 +1911,9 @@ async def get_case_file(
     s = result.scalar_one_or_none()
     if not s or not s.case_file:
         raise HTTPException(404, "No case file generated yet")
-    # Anonymous journeys (no account) have no owner to check against — the session ID
-    # itself is already their only credential, consistent with how /api/session/{id} and
-    # /api/messages already work for them. Owned journeys require the real owner or admin.
-    if s.user_id and s.user_id != user.id and user.username not in ADMIN_USERNAMES:
+    # Only the journey's own account or an admin. (Legacy journeys started without an account have
+    # no owner to check against, so only admins can open those.)
+    if user.username not in ADMIN_USERNAMES and not (s.user_id and s.user_id == user.id):
         raise HTTPException(403, "Not your case file")
     return decrypt_case_file(s.case_file)
 
@@ -2032,7 +2121,7 @@ async def request_guardian_verification(
     try:
         await send_html_email(
             g.email.strip(),
-            f"🛡 {user.username} wants you as their Guardian Angel",
+            f"🛡 {_header_safe(user.username, 40)} wants you as their Guardian Angel",
             verification_email_body(user.username, g.name, f"{APP_BASE_URL}/verify-guardian/{token}"),
         )
     except Exception as exc:
@@ -2475,7 +2564,7 @@ async def _email_feedback(f: FeedbackModel) -> None:
     if not to:
         return
     try:
-        await send_html_email(to, f"💬 Feedback from {f.username or 'a tester'}", feedback_email_body(f))
+        await send_html_email(to, f"💬 Feedback from {_header_safe(f.username or 'a tester', 40)}", feedback_email_body(f))
     except Exception as exc:
         print(f"[FEEDBACK EMAIL ERROR] {exc}")
 
@@ -2551,9 +2640,27 @@ async def beta_apply(request: Request, db: AsyncSession = Depends(get_db)):
     if not existing:
         db.add(b)
     await db.commit()
-    asyncio.create_task(_send_quietly(a["email"], "🛡 Thanks for applying to the Guardian Angel beta",
-                                      beta.confirmation_email(a["name"], a["platform"])))
+    # The form accepts any email address, so cap what it can make the app send: one confirmation per
+    # address (not on re-submits) and a global hourly budget against scripted abuse.
+    if not existing and _beta_confirmation_budget_ok():
+        asyncio.create_task(_send_quietly(a["email"], "🛡 Thanks for applying to the Guardian Angel beta",
+                                          beta.confirmation_email(a["name"], a["platform"])))
     return HTMLResponse(beta.thanks_page(a["name"], a["platform"]))
+
+
+BETA_CONFIRMATIONS_PER_HOUR = 30
+_beta_confirmation_times: list[float] = []
+
+
+def _beta_confirmation_budget_ok() -> bool:
+    import time
+    now = time.monotonic()
+    _beta_confirmation_times[:] = [t for t in _beta_confirmation_times if now - t < 3600]
+    if len(_beta_confirmation_times) >= BETA_CONFIRMATIONS_PER_HOUR:
+        print("[BETA] Hourly confirmation-email budget reached — skipping confirmation")
+        return False
+    _beta_confirmation_times.append(now)
+    return True
 
 
 async def _send_quietly(to: str, subject: str, body_html: str) -> bool:
@@ -2724,7 +2831,7 @@ async def update_profile(
 
 
 @app.get("/api/email-status")
-def email_status():
+def email_status(_admin: UserModel = Depends(require_admin)):
     smtp_user = os.getenv("SMTP_USER", "")
     smtp_pass = os.getenv("SMTP_PASS", "")
     configured = bool(smtp_user and smtp_pass)
@@ -2742,7 +2849,13 @@ class TestEmailBody(BaseModel):
 
 
 @app.post("/api/test-email")
-async def send_test_email(body: TestEmailBody):
+@limiter.limit("10/minute")
+async def send_test_email(request: Request, body: TestEmailBody, admin: UserModel = Depends(require_admin)):
+    """Admin-only SMTP check. Never open to regular users or the public — otherwise anyone could make
+    the app's Gmail account send mail to arbitrary addresses (spam / phishing / account suspension)."""
+    body.to = body.to.strip()
+    if not beta.EMAIL_RE.match(body.to):
+        raise HTTPException(400, "Enter a valid email address")
     smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
     smtp_port = int(os.getenv("SMTP_PORT", "587"))
     smtp_user = os.getenv("SMTP_USER", "")
@@ -2752,7 +2865,7 @@ async def send_test_email(body: TestEmailBody):
     if not smtp_user or not smtp_pass:
         raise HTTPException(400, "SMTP not configured. Create a .env file with SMTP_USER and SMTP_PASS.")
 
-    sent_by = body.requested_by or "an unknown user"
+    sent_by = html_lib.escape(f"admin {admin.username}")
     html = f"""<!DOCTYPE html><html>
 <body style="margin:0;padding:20px;font-family:Arial,sans-serif;background:#0a0d0f;color:#e8eef2;">
 <div style="max-width:520px;margin:0 auto;background:#161b1f;border-radius:12px;overflow:hidden;border:2px solid #00e5a0;">

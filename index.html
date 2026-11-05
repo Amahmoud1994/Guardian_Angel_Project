@@ -1625,7 +1625,7 @@ function renderSavedGuardianList() {
         <div class="g-contact">${esc([g.email, g.phone].filter(Boolean).join(' · ')) || '—'}</div>
       </div>
       ${verifyBtn}
-      ${g.email ? `<button class="btn-test-email" onclick="sendTestEmail('${esc(g.email)}')">Test</button>` : ''}
+      ${g.email && currentUser?.is_admin ? `<button class="btn-test-email" onclick="sendTestEmail('${esc(g.email)}')">Test</button>` : ''}
       <span class="g-remove" onclick="deleteSavedGuardian('${esc(g.id)}')">✕</span>
     </div>`;
   }).join('');
