@@ -786,6 +786,88 @@ async def get_sender_label(s: SessionModel) -> str:
     return f"user {s.user_name}"
 
 
+SMTP_TIMEOUT = 20  # seconds
+RESEND_API_URL = "https://api.resend.com/emails"
+
+
+def email_provider() -> str:
+    """"resend" (HTTPS API — works on hosts that block SMTP ports, e.g. Render's free plan), "smtp", or ""."""
+    if os.getenv("RESEND_API_KEY", "").strip():
+        return "resend"
+    if os.getenv("SMTP_USER", "") and os.getenv("SMTP_PASS", ""):
+        return "smtp"
+    return ""
+
+
+def email_configured() -> bool:
+    return bool(email_provider())
+
+
+def deliver_email(recipients: list[str], subject: str, html_body: str, log_label: str = "Email") -> None:
+    """Blocking send of one HTML email to each recipient separately (recipients never see each other).
+    Call it from a thread (run_in_executor). Raises on failure."""
+    provider = email_provider()
+    if provider == "resend":
+        _deliver_resend(recipients, subject, html_body, log_label)
+    elif provider == "smtp":
+        _deliver_smtp(recipients, subject, html_body, log_label)
+    else:
+        raise RuntimeError("Email isn't configured on the server (set RESEND_API_KEY, or SMTP_USER and SMTP_PASS)")
+
+
+def _deliver_resend(recipients: list[str], subject: str, html_body: str, log_label: str) -> None:
+    import urllib.error
+    import urllib.request
+    key = os.getenv("RESEND_API_KEY", "").strip()
+    sender = os.getenv("EMAIL_FROM", "").strip() or "Guardian Angel <onboarding@resend.dev>"
+    reply_to = (os.getenv("SUPPORT_EMAIL") or "").strip()
+    for recipient in recipients:
+        payload = {"from": sender, "to": [recipient], "subject": subject, "html": html_body}
+        if reply_to:
+            payload["reply_to"] = reply_to
+        req = urllib.request.Request(
+            RESEND_API_URL, data=json.dumps(payload).encode(), method="POST",
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json",
+                     "User-Agent": f"GuardianAngel/{APP_VERSION}"})
+        try:
+            with urllib.request.urlopen(req, timeout=SMTP_TIMEOUT) as resp:
+                resp.read()
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode(errors="replace")[:300]
+            raise RuntimeError(f"Resend rejected the email to {recipient} (HTTP {exc.code}): {detail}") from None
+        print(f"[EMAIL] {log_label} sent to {recipient} (Resend)")
+
+
+def _deliver_smtp(recipients: list[str], subject: str, html_body: str, log_label: str) -> None:
+    smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    smtp_port = int(os.getenv("SMTP_PORT", "587"))
+    smtp_user = os.getenv("SMTP_USER", "")
+    smtp_pass = os.getenv("SMTP_PASS", "").replace(" ", "")
+    smtp_from = os.getenv("SMTP_FROM", smtp_user)
+    with smtplib.SMTP(smtp_host, smtp_port, timeout=SMTP_TIMEOUT) as srv:
+        srv.ehlo()
+        srv.starttls()
+        srv.login(smtp_user, smtp_pass)
+        for recipient in recipients:
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = subject
+            msg["From"]    = smtp_from
+            msg["To"]      = recipient
+            msg.attach(MIMEText(html_body, "html"))
+            srv.sendmail(smtp_user, recipient, msg.as_string())
+            print(f"[EMAIL] {log_label} sent to {recipient}")
+
+
+def email_error_hint(exc: Exception) -> str:
+    """Turn low-level network errors into an actionable log line."""
+    import errno, socket
+    if isinstance(exc, (socket.timeout, TimeoutError)) or getattr(exc, "errno", None) in (
+            errno.ENETUNREACH, errno.EHOSTUNREACH, errno.ECONNREFUSED, errno.ETIMEDOUT):
+        return (f"{exc} — the server can't reach the mail server. Hosting providers often block outgoing email "
+                "ports (25/465/587) on free plans (Render does); upgrade the instance or use an email API.")
+    return str(exc)
+
+
 def _e(value) -> str:
     """HTML-escape anything user-controlled before it goes into an email."""
     return html_lib.escape(str(value)) if value is not None else ""
@@ -931,14 +1013,8 @@ async def send_alert_emails(s: SessionModel, level: int, message_text: Optional[
     if not recipients:
         return
 
-    smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
-    smtp_port = int(os.getenv("SMTP_PORT", "587"))
-    smtp_user = os.getenv("SMTP_USER", "")
-    smtp_pass = os.getenv("SMTP_PASS", "").replace(" ", "")
-    smtp_from = os.getenv("SMTP_FROM", smtp_user)
-
-    if not smtp_user or not smtp_pass:
-        print(f"[EMAIL] SMTP not configured — skipping Level {level} alert")
+    if not email_configured():
+        print(f"[EMAIL] Email not configured — skipping Level {level} alert")
         return
 
     who = _header_safe(s.user_name)
@@ -953,23 +1029,12 @@ async def send_alert_emails(s: SessionModel, level: int, message_text: Optional[
     body    = build_email_body(level, s, sent_by, message_text)
 
     def _send():
-        with smtplib.SMTP(smtp_host, smtp_port) as srv:
-            srv.ehlo()
-            srv.starttls()
-            srv.login(smtp_user, smtp_pass)
-            for recipient in recipients:
-                msg = MIMEMultipart("alternative")
-                msg["Subject"] = subject
-                msg["From"]    = smtp_from
-                msg["To"]      = recipient
-                msg.attach(MIMEText(body, "html"))
-                srv.sendmail(smtp_user, recipient, msg.as_string())
-                print(f"[EMAIL] Level {level} alert sent to {recipient}")
+        deliver_email(recipients, subject, body, log_label=f"Level {level} alert")
 
     try:
         await asyncio.get_running_loop().run_in_executor(None, _send)
     except Exception as exc:
-        print(f"[EMAIL ERROR] {exc}")
+        print(f"[EMAIL ERROR] {email_error_hint(exc)}")
 
 
 async def send_message_email(s: SessionModel, text: str) -> None:
@@ -979,13 +1044,8 @@ async def send_message_email(s: SessionModel, text: str) -> None:
     if not recipients:
         return
 
-    smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
-    smtp_port = int(os.getenv("SMTP_PORT", "587"))
-    smtp_user = os.getenv("SMTP_USER", "")
-    smtp_pass = os.getenv("SMTP_PASS", "").replace(" ", "")
-    smtp_from = os.getenv("SMTP_FROM", smtp_user)
-    if not smtp_user or not smtp_pass:
-        print("[EMAIL] SMTP not configured — skipping message notification")
+    if not email_configured():
+        print("[EMAIL] Email not configured — skipping message notification")
         return
 
     subject   = f"💬 {_header_safe(s.user_name)} is safe — sent you a message"
@@ -1015,23 +1075,12 @@ async def send_message_email(s: SessionModel, text: str) -> None:
 </body></html>"""
 
     def _send():
-        with smtplib.SMTP(smtp_host, smtp_port) as srv:
-            srv.ehlo()
-            srv.starttls()
-            srv.login(smtp_user, smtp_pass)
-            for recipient in recipients:
-                msg = MIMEMultipart("alternative")
-                msg["Subject"] = subject
-                msg["From"]    = smtp_from
-                msg["To"]      = recipient
-                msg.attach(MIMEText(body, "html"))
-                srv.sendmail(smtp_user, recipient, msg.as_string())
-                print(f"[EMAIL] Message notification sent to {recipient}")
+        deliver_email(recipients, subject, body, log_label="Message notification")
 
     try:
         await asyncio.get_running_loop().run_in_executor(None, _send)
     except Exception as exc:
-        print(f"[EMAIL ERROR] {exc}")
+        print(f"[EMAIL ERROR] {email_error_hint(exc)}")
 
 
 # ─────────────────────────────────────────────
@@ -1218,6 +1267,12 @@ async def keepalive():
 # ─────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(_):
+    if os.getenv("RENDER") and not IS_POSTGRES:
+        print("!" * 78)
+        print("[DATABASE] WARNING: running on Render WITHOUT DATABASE_URL — using a temporary SQLite file.")
+        print("[DATABASE] Every restart or redeploy ERASES all accounts, journeys and beta applications.")
+        print("[DATABASE] Fix: create a Render Postgres database and set DATABASE_URL (see LAUNCH.md).")
+        print("!" * 78)
     _ensure_icons()
     _load_or_create_vapid()
     _load_or_create_case_key()
@@ -2053,28 +2108,10 @@ VERIFY_LINK_TTL = timedelta(days=7)
 
 
 async def send_html_email(to: str, subject: str, body_html: str) -> None:
-    """Send one HTML email. Raises if SMTP isn't configured or sending fails."""
-    smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
-    smtp_port = int(os.getenv("SMTP_PORT", "587"))
-    smtp_user = os.getenv("SMTP_USER", "")
-    smtp_pass = os.getenv("SMTP_PASS", "").replace(" ", "")
-    smtp_from = os.getenv("SMTP_FROM", smtp_user)
-    if not smtp_user or not smtp_pass:
-        raise RuntimeError("Email isn't configured on the server (SMTP_USER / SMTP_PASS)")
-
-    def _send():
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"]    = smtp_from
-        msg["To"]      = to
-        msg.attach(MIMEText(body_html, "html"))
-        with smtplib.SMTP(smtp_host, smtp_port, timeout=20) as srv:
-            srv.ehlo()
-            srv.starttls()
-            srv.login(smtp_user, smtp_pass)
-            srv.sendmail(smtp_user, to, msg.as_string())
-
-    await asyncio.get_running_loop().run_in_executor(None, _send)
+    """Send one HTML email. Raises if email isn't configured or sending fails."""
+    if not email_configured():
+        raise RuntimeError("Email isn't configured on the server (set RESEND_API_KEY, or SMTP_USER and SMTP_PASS)")
+    await asyncio.get_running_loop().run_in_executor(None, deliver_email, [to], subject, body_html)
 
 
 def verification_email_body(traveler: str, guardian_name: str, link: str) -> str:
@@ -2125,7 +2162,7 @@ async def request_guardian_verification(
             verification_email_body(user.username, g.name, f"{APP_BASE_URL}/verify-guardian/{token}"),
         )
     except Exception as exc:
-        print(f"[VERIFY EMAIL ERROR] {exc}")
+        print(f"[VERIFY EMAIL ERROR] {email_error_hint(exc)}")
         raise HTTPException(502, f"Couldn't send the verification email: {exc}")
 
     g.verification   = "pending"
@@ -2307,8 +2344,10 @@ def beta_invite_only() -> bool:
 
 
 def beta_allowed_emails() -> set[str]:
-    """Extra emails let in without applying (e.g. the Google Play reviewer account, friends)."""
-    return {e.strip().lower() for e in os.getenv("BETA_ALLOWED_EMAILS", "").split(",") if e.strip()}
+    """Extra emails let in without applying (e.g. the Google Play reviewer account, friends).
+    Forgiving about how the setting was typed: commas, semicolons, spaces or line breaks, with or without quotes."""
+    raw = os.getenv("BETA_ALLOWED_EMAILS", "")
+    return {e.strip("\"'<> ").lower() for e in re.split(r"[,;\s]+", raw) if e.strip("\"'<> ")}
 
 
 async def check_beta_invite(db: AsyncSession, email: str) -> None:
@@ -2428,7 +2467,7 @@ async def _send_reset_email(to: str, username: str, token: str) -> None:
         await send_html_email(to, "🛡 Reset your Guardian Angel password",
                               password_reset_email_body(username, f"{APP_BASE_URL}/reset-password/{token}"))
     except Exception as exc:
-        print(f"[RESET EMAIL ERROR] {exc}")
+        print(f"[RESET EMAIL ERROR] {email_error_hint(exc)}")
 
 
 async def _reset_for_token(db: AsyncSession, token: str) -> Optional[PasswordResetModel]:
@@ -2566,7 +2605,7 @@ async def _email_feedback(f: FeedbackModel) -> None:
     try:
         await send_html_email(to, f"💬 Feedback from {_header_safe(f.username or 'a tester', 40)}", feedback_email_body(f))
     except Exception as exc:
-        print(f"[FEEDBACK EMAIL ERROR] {exc}")
+        print(f"[FEEDBACK EMAIL ERROR] {email_error_hint(exc)}")
 
 
 @app.post("/api/feedback")
@@ -2668,7 +2707,7 @@ async def _send_quietly(to: str, subject: str, body_html: str) -> bool:
         await send_html_email(to, subject, body_html)
         return True
     except Exception as exc:
-        print(f"[EMAIL ERROR] {to}: {exc}")
+        print(f"[EMAIL ERROR] {to}: {email_error_hint(exc)}")
         return False
 
 
@@ -2834,9 +2873,11 @@ async def update_profile(
 def email_status(_admin: UserModel = Depends(require_admin)):
     smtp_user = os.getenv("SMTP_USER", "")
     smtp_pass = os.getenv("SMTP_PASS", "")
-    configured = bool(smtp_user and smtp_pass)
+    configured = email_configured()
     return {
         "configured": configured,
+        "provider":   email_provider() or "none",
+        "email_from": os.getenv("EMAIL_FROM", "") if email_provider() == "resend" else "",
         "smtp_host":  os.getenv("SMTP_HOST", "smtp.gmail.com"),
         "smtp_port":  int(os.getenv("SMTP_PORT", "587")),
         "smtp_user":  smtp_user if configured else "",
@@ -2856,14 +2897,8 @@ async def send_test_email(request: Request, body: TestEmailBody, admin: UserMode
     body.to = body.to.strip()
     if not beta.EMAIL_RE.match(body.to):
         raise HTTPException(400, "Enter a valid email address")
-    smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
-    smtp_port = int(os.getenv("SMTP_PORT", "587"))
-    smtp_user = os.getenv("SMTP_USER", "")
-    smtp_pass = os.getenv("SMTP_PASS", "").replace(" ", "")
-    smtp_from = os.getenv("SMTP_FROM", smtp_user)
-
-    if not smtp_user or not smtp_pass:
-        raise HTTPException(400, "SMTP not configured. Create a .env file with SMTP_USER and SMTP_PASS.")
+    if not email_configured():
+        raise HTTPException(400, "Email not configured. Set RESEND_API_KEY (recommended) or SMTP_USER and SMTP_PASS.")
 
     sent_by = html_lib.escape(f"admin {admin.username}")
     html = f"""<!DOCTYPE html><html>
@@ -2890,23 +2925,14 @@ async def send_test_email(request: Request, body: TestEmailBody, admin: UserMode
 </body></html>"""
 
     def _send():
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = "🛡 Guardian Angel — Email Test"
-        msg["From"]    = smtp_from
-        msg["To"]      = body.to
-        msg.attach(MIMEText(html, "html"))
-        with smtplib.SMTP(smtp_host, smtp_port) as srv:
-            srv.ehlo()
-            srv.starttls()
-            srv.login(smtp_user, smtp_pass)
-            srv.sendmail(smtp_user, body.to, msg.as_string())
+        deliver_email([body.to], "🛡 Guardian Angel — Email Test", html, log_label="Test email")
 
     try:
         await asyncio.get_running_loop().run_in_executor(None, _send)
         print(f"[EMAIL] Test email sent to {body.to}")
         return {"ok": True, "message": f"Test email sent to {body.to}"}
     except Exception as exc:
-        print(f"[EMAIL ERROR] Test failed: {exc}")
+        print(f"[EMAIL ERROR] Test failed: {email_error_hint(exc)}")
         raise HTTPException(500, f"Email failed: {exc}")
 
 
@@ -2918,4 +2944,6 @@ def serve_ui():
 @app.get("/health")
 async def health(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(SessionModel).where(SessionModel.status == "ACTIVE"))
-    return {"status": "ok", "active_sessions": len(result.scalars().all()), "push_enabled": bool(VAPID["public"])}
+    return {"status": "ok", "active_sessions": len(result.scalars().all()), "push_enabled": bool(VAPID["public"]),
+            # False = data lives in a local file that hosts like Render wipe on every restart/redeploy.
+            "persistent_storage": IS_POSTGRES}

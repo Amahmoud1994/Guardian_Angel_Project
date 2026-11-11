@@ -20,7 +20,13 @@ services:
       # Your public address: https://guardianangel.at (used in email links + the Android app)
       - key: APP_BASE_URL
         sync: false
-      # Email (Gmail: smtp.gmail.com / 587 + an App Password)
+      # Email — recommended: Resend's HTTPS API (works on every plan; SMTP ports are blocked on Render's free plan)
+      - key: RESEND_API_KEY
+        sync: false
+      # Sender shown to recipients, on your Resend-verified domain
+      - key: EMAIL_FROM
+        value: "Guardian Angel <no-reply@guardianangel.at>"
+      # Fallback only (used when RESEND_API_KEY is empty): Gmail SMTP — smtp.gmail.com / 587 + an App Password
       - key: SMTP_HOST
         value: smtp.gmail.com
       - key: SMTP_PORT
