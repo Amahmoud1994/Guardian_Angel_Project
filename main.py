@@ -1129,7 +1129,7 @@ async def send_push_to_user(user_id: str, title: str, body_text: str, level: int
             print(f"[PUSH] Sent level {level} alert to user {user_id}")
         except WebPushException as exc:
             status = getattr(exc.response, "status_code", None)
-            if status in (404, 410):  # subscription expired / app uninstalled
+            if status in (403, 404, 410):  # expired, app uninstalled, or made with other keys — unusable
                 dead.append(sub.id)
             print(f"[PUSH ERROR] user={user_id} status={status}: {exc}")
         except Exception as exc:
@@ -2274,6 +2274,30 @@ def get_vapid_key():
     if not VAPID["public"]:
         raise HTTPException(503, "Push notifications not configured")
     return {"public_key": VAPID["public"]}
+
+
+TEST_PUSH_DELAY_SECONDS = 10
+
+
+@app.post("/api/push/test")
+@limiter.limit("3/minute")
+async def send_test_push(request: Request, db: AsyncSession = Depends(get_db),
+                         user: UserModel = Depends(get_current_user)):
+    """Send a notification to the signed-in user's own devices after a short delay, so they can lock the
+    phone or close the app first and see whether background notifications really arrive. Only ever goes
+    to the caller's own registered devices."""
+    result = await db.execute(select(PushSubscriptionModel.id).where(PushSubscriptionModel.user_id == user.id))
+    devices = len(result.all())
+    if not devices:
+        raise HTTPException(400, "This account has no device registered for notifications yet")
+
+    async def _later():
+        await asyncio.sleep(TEST_PUSH_DELAY_SECONDS)
+        await send_push_to_user(user.id, "🔔 Test notification",
+                                "Notifications work on this device — you'll get alerts like this even when the app is closed.", 1)
+
+    asyncio.create_task(_later())
+    return {"ok": True, "devices": devices, "delay_seconds": TEST_PUSH_DELAY_SECONDS}
 
 
 @app.post("/api/push/subscribe")

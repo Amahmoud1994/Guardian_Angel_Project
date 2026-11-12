@@ -843,6 +843,8 @@ input[type="datetime-local"]{color-scheme:dark;}
   <div class="section-title">Account</div>
   <div class="card">
     <div class="card-label">Your data</div>
+    <button class="btn btn-ghost" id="btn-test-push" onclick="sendTestNotification()">🔔 Send a Test Notification</button>
+    <div style="font-size:11px;color:var(--muted);margin:6px 0 12px;line-height:1.5;">Checks that alerts reach this phone even when the app is closed or the screen is locked.</div>
     <button class="btn btn-ghost" onclick="downloadMyData()">⬇ Download My Data</button>
     <div class="spacer" style="height:12px;"></div>
     <div class="link-row">
@@ -1062,17 +1064,29 @@ async function enablePushNotifications() {
   toast('Push notifications enabled ✓');
 }
 
+// Registers this device for background notifications. Safe to call repeatedly (it runs on every app start).
+// Returns true when the server knows this device.
 async function subscribePush() {
-  if (!currentUser || !swRegistration) return;
+  if (!currentUser || !('serviceWorker' in navigator) || !('PushManager' in window)) return false;
+  if (Notification.permission !== 'granted') return false;
   try {
+    // Wait for the service worker instead of giving up when it isn't registered yet — the login check
+    // often finishes first, which used to skip registration silently (no alerts with the app closed).
+    const reg = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('service worker not ready')), 15000)),
+    ]);
     const { public_key } = await api('/api/push/vapid-key');
-    const reg = await navigator.serviceWorker.ready;
+    const serverKey = urlBase64ToUint8Array(public_key);
     let sub = await reg.pushManager.getSubscription();
+    // A subscription made with different server keys can never receive our pushes — replace it.
+    const subKey = sub?.options?.applicationServerKey ? new Uint8Array(sub.options.applicationServerKey) : null;
+    if (sub && subKey && (subKey.length !== serverKey.length || subKey.some((b, i) => b !== serverKey[i]))) {
+      await sub.unsubscribe();
+      sub = null;
+    }
     if (!sub) {
-      sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(public_key),
-      });
+      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: serverKey });
     }
     const j = sub.toJSON();
     await api('/api/push/subscribe', 'POST', {
@@ -1080,7 +1094,24 @@ async function subscribePush() {
       p256dh: j.keys.p256dh,
       auth: j.keys.auth,
     });
-  } catch (e) { console.warn('[PUSH] Subscribe failed:', e); }
+    return true;
+  } catch (e) { console.warn('[PUSH] Subscribe failed:', e); return false; }
+}
+
+async function sendTestNotification() {
+  if (!('Notification' in window) || !('serviceWorker' in navigator)) { toast('Notifications are not supported here', 'err'); return; }
+  if (Notification.permission === 'default') await Notification.requestPermission();
+  if (Notification.permission !== 'granted') {
+    toast('Notifications are blocked — allow them in your phone settings for this app', 'err'); return;
+  }
+  const btn = document.getElementById('btn-test-push');
+  btn.disabled = true;
+  try {
+    if (!(await subscribePush())) throw new Error('Could not register this device for notifications');
+    const r = await api('/api/push/test', 'POST');
+    toast(`Lock your phone or close the app now — a test notification arrives in about ${r.delay_seconds} seconds`);
+  } catch(e) { toast(e.message || 'Test failed', 'err'); }
+  finally { setTimeout(() => { btn.disabled = false; }, 15000); }
 }
 
 // ── ALERT POPUP ───────────────────────────────

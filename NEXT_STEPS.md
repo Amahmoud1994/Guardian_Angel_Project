@@ -39,12 +39,12 @@ Checked on the live site on November 10, 2026:
 
 *Today, about 30 minutes, nobody else involved.*
 
-- [ ] **Persistent database first:** open https://guardianangel.at/health and check it shows **`"persistent_storage": true`**. If it says `false` or the field is missing, the site is on a temporary database that's wiped on every restart:
+- [x] **Persistent database first** (done November 11, 2026: `/health` shows `persistent_storage: true`): open https://guardianangel.at/health and check it shows **`"persistent_storage": true`**. If it says `false` or the field is missing, the site is on a temporary database that's wiped on every restart:
   - Render → **New → Postgres** (paid plan, same region as the web service)
   - copy its **Internal Database URL** into the web service's `DATABASE_URL`
   - set the service's **Instance Type** to **Starter** so it never goes to sleep
   - re-register your admin account afterwards
-- [ ] **Email through Resend** (Render blocks Gmail's email ports on the free plan; "Network is unreachable" in the logs):
+- [x] **Email through Resend** (done and tested) (Render blocks Gmail's email ports on the free plan; "Network is unreachable" in the logs):
   1. Sign up at https://resend.com, then **Domains → Add Domain** → `guardianangel.at` (region close to your users).
   2. Resend shows **3–4 DNS records**, usually on `send.guardianangel.at` and `resend._domainkey.guardianangel.at`. Add them **exactly** in GoDaddy → DNS. They don't touch your existing website or ImprovMX records.
   3. Wait until Resend shows the domain as **Verified** (minutes, sometimes a few hours).
@@ -73,6 +73,9 @@ If anything looks wrong, stop and tell Claude. It gets fixed before anyone else 
 
 *This week, no public posts.*
 
+- [ ] **Before inviting anyone, upgrade both on Render (about $13–14/month together):**
+  - the **Postgres database** to a paid plan. Same database, no data lost, adds daily backups. Render's free database is deleted after 30 days, so do this no later than **30 days after creating it** (free database created **November 11, 2026** → upgrade by **December 11, 2026** at the latest).
+  - the **web service** to **Starter**, so it never sleeps. While asleep, missed check-ins don't escalate and scheduled journeys don't start.
 - [ ] Send the short **WhatsApp** message from [store/BETA_RECRUITING.md](store/BETA_RECRUITING.md) to 3–5 friends or family members with Android phones.
 - [ ] When they've applied: **Monitor → Beta Applicants** → **⭐ Shortlist** them.
 - [ ] **📋 Copy shortlisted emails** → Play Console → **Closed testing → Testers** → paste → save.
