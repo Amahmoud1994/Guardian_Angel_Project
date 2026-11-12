@@ -1086,8 +1086,29 @@ async def send_message_email(s: SessionModel, text: str) -> None:
 # ─────────────────────────────────────────────
 #  Web Push
 # ─────────────────────────────────────────────
+# Last push attempt per user (in memory) — lets the app show *where* a notification got lost.
+PUSH_LAST_RESULTS: dict[str, dict] = {}
+
+
+def _record_push(user_id: str, results: list[dict], note: str = "") -> None:
+    PUSH_LAST_RESULTS[user_id] = {"at": datetime.now(timezone.utc).isoformat(), "results": results, "note": note}
+
+
+def vapid_keys_consistent() -> bool:
+    """True when the configured private key really belongs to the public key handed to browsers.
+    A mismatch makes every push fail (the push service rejects the signature)."""
+    try:
+        from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat, load_pem_private_key
+        priv = load_pem_private_key(VAPID["private"].encode(), password=None)
+        pub = priv.public_key().public_bytes(Encoding.X962, PublicFormat.UncompressedPoint)
+        return base64.urlsafe_b64encode(pub).rstrip(b"=").decode() == (VAPID["public"] or "").rstrip("=")
+    except Exception:
+        return False
+
+
 async def send_push_to_user(user_id: str, title: str, body_text: str, level: int) -> None:
     if not VAPID["private"] or not VAPID["public"]:
+        _record_push(user_id, [], "Push keys are not configured on the server")
         return
     try:
         from pywebpush import webpush, WebPushException
@@ -1101,6 +1122,7 @@ async def send_push_to_user(user_id: str, title: str, body_text: str, level: int
         subs = result.scalars().all()
 
     if not subs:
+        _record_push(user_id, [], "No device is registered for this account")
         return
 
     # Contact address push services can reach the app operator at (required in the VAPID token).
@@ -1123,18 +1145,28 @@ async def send_push_to_user(user_id: str, title: str, body_text: str, level: int
             timeout=10,
         )
 
-    dead = []
+    dead, results = [], []
     for sub in subs:
+        service = sub.endpoint.split("/")[2] if "://" in sub.endpoint else "unknown"
         try:
             await asyncio.get_running_loop().run_in_executor(None, _send_one, sub)
             print(f"[PUSH] Sent level {level} alert to user {user_id}")
+            results.append({"service": service, "ok": True, "status": 201, "error": ""})
         except WebPushException as exc:
             status = getattr(exc.response, "status_code", None)
+            body = ""
+            try:
+                body = (exc.response.text or "")[:200]
+            except Exception:
+                pass
             if status in (403, 404, 410):  # expired, app uninstalled, or made with other keys — unusable
                 dead.append(sub.id)
             print(f"[PUSH ERROR] user={user_id} status={status}: {exc}")
+            results.append({"service": service, "ok": False, "status": status, "error": body or str(exc)[:200]})
         except Exception as exc:
             print(f"[PUSH ERROR] user={user_id}: {exc}")
+            results.append({"service": service, "ok": False, "status": None, "error": str(exc)[:200]})
+    _record_push(user_id, results)
 
     if dead:
         async with AsyncSessionLocal() as db:
@@ -2306,6 +2338,16 @@ async def send_test_push(request: Request, db: AsyncSession = Depends(get_db),
     return {"ok": True, "devices": devices, "delay_seconds": TEST_PUSH_DELAY_SECONDS}
 
 
+@app.get("/api/push/diagnostics")
+async def push_diagnostics(db: AsyncSession = Depends(get_db), user: UserModel = Depends(get_current_user)):
+    """What the server knows about this user's notifications: registered devices, whether the server's
+    push keys are valid, and what the push services answered the last time we sent something."""
+    result = await db.execute(select(PushSubscriptionModel.endpoint).where(PushSubscriptionModel.user_id == user.id))
+    services = [e.split("/")[2] if "://" in e else "unknown" for (e,) in result.all()]
+    return {"devices": len(services), "services": services, "server_keys_ok": vapid_keys_consistent(),
+            "last_attempt": PUSH_LAST_RESULTS.get(user.id)}
+
+
 @app.post("/api/push/subscribe")
 async def push_subscribe(
     body: PushSubscribe, db: AsyncSession = Depends(get_db),
@@ -2976,4 +3018,5 @@ async def health(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(SessionModel).where(SessionModel.status == "ACTIVE"))
     return {"status": "ok", "active_sessions": len(result.scalars().all()), "push_enabled": bool(VAPID["public"]),
             # False = data lives in a local file that hosts like Render wipe on every restart/redeploy.
-            "persistent_storage": IS_POSTGRES}
+            "persistent_storage": IS_POSTGRES,
+            "push_keys_ok": vapid_keys_consistent()}

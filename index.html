@@ -1149,6 +1149,28 @@ async function updatePushStatus() {
   } catch (e) { el.textContent = ''; }
 }
 
+async function showPushDiagnostics() {
+  const el = document.getElementById('push-status');
+  try {
+    const d = await api('/api/push/diagnostics');
+    const last = d.last_attempt;
+    let msg;
+    if (!d.server_keys_ok) {
+      msg = '❌ <strong>Server problem:</strong> the server’s push keys don’t match each other, so Google rejects every notification. (Admin: check VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY on Render.)';
+    } else if (!last) {
+      msg = '⏳ The test hasn’t been sent yet — wait a few seconds and check again.';
+    } else if (!last.results.length) {
+      msg = `❌ ${esc(last.note || 'Nothing was sent.')}`;
+    } else if (last.results.some(x => x.ok)) {
+      msg = '✅ <strong>Google accepted the test notification.</strong> If it didn’t show on your phone, the phone is hiding it: Settings → Apps → <strong>Guardian</strong> → Notifications (allow, “pop on screen”, vibrate) and Battery → <strong>Unrestricted</strong>. Also check Do Not Disturb.';
+    } else {
+      const x = last.results[0];
+      msg = `❌ <strong>Google rejected the notification</strong> (${esc(x.status ?? 'no answer')}: ${esc(x.error)}). Tap the test button again — the phone re-registers automatically.`;
+    }
+    el.innerHTML = `<div style="margin-top:4px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);">${msg}<div style="margin-top:6px;font-family:var(--mono);font-size:10px;color:var(--muted);">devices registered: ${d.devices}${d.services.length ? ' · ' + esc(d.services.join(', ')) : ''}</div></div>`;
+  } catch (e) { /* not signed in */ }
+}
+
 async function sendTestNotification() {
   if (!('Notification' in window) || !('serviceWorker' in navigator)) { toast('Notifications are not supported here', 'err'); return; }
   if (Notification.permission === 'default') await Notification.requestPermission();
@@ -1164,6 +1186,8 @@ async function sendTestNotification() {
     if (!ok) throw new Error('Could not register this device for notifications');
     const r = await api('/api/push/test', 'POST');
     toast(`Lock your phone or close the app now — a test notification arrives in about ${r.delay_seconds} seconds`);
+    // Afterwards, report what Google's push service answered — tells us where a missing notification got lost.
+    setTimeout(showPushDiagnostics, (r.delay_seconds + 8) * 1000);
   } catch(e) { toast(e.message || 'Test failed', 'err'); }
   finally { setTimeout(() => { btn.disabled = false; }, 15000); }
 }
