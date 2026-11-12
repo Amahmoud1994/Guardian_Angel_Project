@@ -1103,7 +1103,8 @@ async def send_push_to_user(user_id: str, title: str, body_text: str, level: int
     if not subs:
         return
 
-    smtp_user = os.getenv("SMTP_USER", "guardian@example.com")
+    # Contact address push services can reach the app operator at (required in the VAPID token).
+    push_contact = (os.getenv("VAPID_SUBJECT") or os.getenv("SUPPORT_EMAIL") or "support@guardianangel.at").strip()
     payload   = json.dumps({"title": title, "body": body_text, "level": level})
 
     def _send_one(sub: PushSubscriptionModel):
@@ -1114,7 +1115,7 @@ async def send_push_to_user(user_id: str, title: str, body_text: str, level: int
             },
             data=payload,
             vapid_private_key=VAPID["private"],
-            vapid_claims={"sub": f"mailto:{smtp_user}"},
+            vapid_claims={"sub": push_contact if push_contact.startswith(("mailto:", "https://")) else f"mailto:{push_contact}"},
             # ttl=0 (the default) makes the push service drop the message if the phone is
             # asleep; keep it queued for an hour and mark it urgent so it wakes the device.
             ttl=3600,
@@ -1144,6 +1145,9 @@ async def send_push_to_user(user_id: str, title: str, body_text: str, level: int
 # ─────────────────────────────────────────────
 #  Escalation
 # ─────────────────────────────────────────────
+GUARDIAN_EMAIL_MIN_LEVEL = 2  # guardians get alert emails from this escalation level on (duress always emails)
+
+
 async def escalate(db: AsyncSession, session_id: str):
     result = await db.execute(select(SessionModel).where(SessionModel.session_id == session_id))
     s = result.scalar_one_or_none()
@@ -1168,8 +1172,10 @@ async def escalate(db: AsyncSession, session_id: str):
         s.case_file = encrypt_case_file(json.dumps(generate_case_file(s)))
     await db.commit()
 
-    # Fire background notifications — email to guardians + push to journey user's device
-    asyncio.create_task(send_alert_emails(s, next_level))
+    # Fire background notifications — push to the journey user's device at every level; guardians are
+    # emailed from Level 2 on (Level 1 is just the user's own "check-in overdue" reminder).
+    if next_level >= GUARDIAN_EMAIL_MIN_LEVEL:
+        asyncio.create_task(send_alert_emails(s, next_level))
     if s.user_id:
         asyncio.create_task(send_push_to_user(
             s.user_id,

@@ -59,9 +59,17 @@ body{max-width:480px;margin:0 auto;padding:0 0 80px;position:relative;}
 .status-badge.offline{background:var(--surface);color:var(--muted);border-color:var(--border);}
 
 /* ── TABS ── */
-.tabs{display:flex;border-bottom:1px solid var(--border);background:var(--surface);overflow-x:auto;}
-.tab{flex:1;min-width:60px;padding:12px 0;text-align:center;font-size:11px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;letter-spacing:.3px;white-space:nowrap;}
-.tab.active{color:var(--accent);border-color:var(--accent);}
+.tab-menu-bar{position:relative;padding:10px 20px;border-bottom:1px solid var(--border);background:var(--surface);}
+.tab-toggle{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:20px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:var(--sans);font-size:13px;font-weight:700;cursor:pointer;}
+.tab-toggle:hover{border-color:var(--muted);}
+.tab-caret{color:var(--muted);font-size:10px;transition:transform .2s;}
+.tab-menu-bar.open .tab-caret{transform:rotate(180deg);}
+.tabs{display:none;position:absolute;left:20px;top:calc(100% - 4px);z-index:50;min-width:230px;flex-direction:column;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:6px;box-shadow:0 12px 30px rgba(0,0,0,.55);}
+.tab-menu-bar.open .tabs{display:flex;}
+.tab{padding:11px 14px;font-size:13px;font-weight:600;color:var(--text);cursor:pointer;border-radius:8px;white-space:nowrap;}
+.tab:hover{background:var(--surface);}
+.tab.active{color:var(--accent);background:#0d1f18;}
+.tab-group-label{font-size:10px;color:var(--muted);font-family:var(--mono);letter-spacing:1px;text-transform:uppercase;padding:10px 14px 4px;margin-top:4px;border-top:1px solid var(--border);}
 
 /* ── PANELS ── */
 .panel{display:none;padding:20px;}
@@ -368,15 +376,24 @@ input[type="datetime-local"]{color-scheme:dark;}
   <span id="btn-logout" onclick="doLogout()" style="display:none;margin-left:8px;color:var(--muted);font-size:11px;font-family:var(--mono);cursor:pointer;white-space:nowrap;">Log Out</span>
 </div>
 
-<!-- Tabs -->
-<div class="tabs">
-  <div class="tab active" onclick="switchTab('home')">Home</div>
-  <div class="tab" onclick="switchTab('checkin')">Check-In</div>
-  <div class="tab" onclick="switchTab('guardians')">Guardians</div>
-  <div class="tab" onclick="switchTab('profile')">Profile</div>
-  <div class="tab" onclick="switchTab('inbox')">Inbox</div>
-  <div class="tab" id="tab-monitor-btn" style="display:none" onclick="switchTab('monitor')">Monitor</div>
-  <div class="tab" onclick="switchTab('log')">Log</div>
+<!-- Tabs: a compact menu button that opens the list of sections -->
+<div class="tab-menu-bar" id="tab-menu-bar">
+  <button type="button" class="tab-toggle" id="tab-toggle" onclick="toggleTabMenu()" aria-expanded="false" aria-controls="tab-menu">
+    <span>☰</span><span id="tab-current">🏠 Home</span><span class="tab-caret">▼</span>
+  </button>
+  <div class="tabs" id="tab-menu" role="menu">
+    <div class="tab active" role="menuitem" data-tab="home" onclick="switchTab('home')">🏠 Home</div>
+    <div class="tab" role="menuitem" data-tab="checkin" onclick="switchTab('checkin')">✅ Check-In</div>
+    <div class="tab" role="menuitem" data-tab="guardians" onclick="switchTab('guardians')">🛡 Guardians</div>
+    <div class="tab" role="menuitem" data-tab="profile" onclick="switchTab('profile')">👤 Profile</div>
+    <div class="tab" role="menuitem" data-tab="inbox" onclick="switchTab('inbox')">📥 Inbox</div>
+    <div class="tab" role="menuitem" data-tab="log" onclick="switchTab('log')">📜 Log</div>
+    <div class="tab-group-label admin-only" style="display:none">Admin</div>
+    <div class="tab admin-only" role="menuitem" id="tab-monitor-btn" data-tab="monitor" style="display:none" onclick="switchTab('monitor')">📊 Monitor</div>
+    <div class="tab admin-only" role="menuitem" data-tab="numbers" style="display:none" onclick="switchTab('numbers')">🚑 Emergency Numbers</div>
+    <div class="tab admin-only" role="menuitem" data-tab="applicants" style="display:none" onclick="switchTab('applicants')">📝 Beta Applicants</div>
+    <div class="tab admin-only" role="menuitem" data-tab="feedback" style="display:none" onclick="switchTab('feedback')">💬 Tester Feedback</div>
+  </div>
 </div>
 
 <!-- ══ HOME TAB ══ -->
@@ -713,8 +730,8 @@ input[type="datetime-local"]{color-scheme:dark;}
       <div class="ladder" id="ladder">
         <div class="rung done" id="rung0"><span class="rung-icon">✅</span><div class="rung-text"><div class="rung-name">Level 0 — Idle / Safe</div><div class="rung-desc">Timer running, user OK</div></div></div>
         <div class="rung" id="rung1"><span class="rung-icon">⏰</span><div class="rung-text"><div class="rung-name">Level 1 — Check-in Overdue</div><div class="rung-desc">Push reminder sent to you</div></div></div>
-        <div class="rung" id="rung2"><span class="rung-icon">⚠️</span><div class="rung-text"><div class="rung-name">Level 2 — Warning Issued</div><div class="rung-desc">Audio alert & 2nd notification</div></div></div>
-        <div class="rung" id="rung3"><span class="rung-icon">🚨</span><div class="rung-text"><div class="rung-name">Level 3 — Guardian Alert</div><div class="rung-desc">Your guardians alerted by email</div></div></div>
+        <div class="rung" id="rung2"><span class="rung-icon">⚠️</span><div class="rung-text"><div class="rung-name">Level 2 — Warning Issued</div><div class="rung-desc">Warning to you · first email to your guardians</div></div></div>
+        <div class="rung" id="rung3"><span class="rung-icon">🚨</span><div class="rung-text"><div class="rung-name">Level 3 — Guardian Alert</div><div class="rung-desc">Urgent email to your guardians</div></div></div>
         <div class="rung" id="rung4"><span class="rung-icon">🔴</span><div class="rung-text"><div class="rung-name">Level 4 — Critical</div><div class="rung-desc">Guardians urged to contact local authorities · case file prepared</div></div><span class="rung-badge" id="rung4badge" style="display:none">ACTIVE</span></div>
       </div>
     </div>
@@ -843,6 +860,7 @@ input[type="datetime-local"]{color-scheme:dark;}
   <div class="section-title">Account</div>
   <div class="card">
     <div class="card-label">Your data</div>
+    <div id="push-status" style="font-size:12px;line-height:1.5;margin-bottom:8px;color:var(--muted);"></div>
     <button class="btn btn-ghost" id="btn-test-push" onclick="sendTestNotification()">🔔 Send a Test Notification</button>
     <div style="font-size:11px;color:var(--muted);margin:6px 0 12px;line-height:1.5;">Checks that alerts reach this phone even when the app is closed or the screen is locked.</div>
     <button class="btn btn-ghost" onclick="downloadMyData()">⬇ Download My Data</button>
@@ -915,7 +933,10 @@ input[type="datetime-local"]{color-scheme:dark;}
     <div class="case-grid" id="case-grid"></div>
   </div>
 
-  <div class="spacer"></div>
+</div>
+
+<!-- ══ ADMIN: EMERGENCY NUMBERS ══ -->
+<div id="tab-numbers" class="panel">
   <div class="section-title">Emergency Numbers</div>
   <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Admin-editable — changes take effect immediately, no redeploy needed.</div>
   <div class="card">
@@ -927,12 +948,18 @@ input[type="datetime-local"]{color-scheme:dark;}
   </div>
   <div id="emergency-numbers-list"></div>
 
-  <div class="spacer"></div>
+</div>
+
+<!-- ══ ADMIN: TESTER FEEDBACK ══ -->
+<div id="tab-feedback" class="panel">
   <div class="section-title">Tester Feedback</div>
   <button class="btn btn-ghost" style="margin-bottom:14px;" onclick="loadFeedback()">↻ Refresh</button>
   <div id="feedback-list"><div class="empty-state">No feedback yet.</div></div>
 
-  <div class="spacer"></div>
+</div>
+
+<!-- ══ ADMIN: BETA APPLICANTS ══ -->
+<div id="tab-applicants" class="panel">
   <div class="section-title">Beta Applicants</div>
   <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5;">Applications from <a href="/beta" target="_blank" rel="noopener" style="color:var(--accent);">guardianangel.at/beta</a>, ranked by score (0–100). Shortlist the best, add their emails to Play Console's tester list, then send invites.</div>
   <div class="beta-stats" id="beta-stats"></div>
@@ -1062,6 +1089,7 @@ async function enablePushNotifications() {
   document.getElementById('notif-banner').classList.remove('show');
   await subscribePush();
   toast('Push notifications enabled ✓');
+  updatePushStatus();
 }
 
 // Registers this device for background notifications. Safe to call repeatedly (it runs on every app start).
@@ -1098,6 +1126,29 @@ async function subscribePush() {
   } catch (e) { console.warn('[PUSH] Subscribe failed:', e); return false; }
 }
 
+// Shows on the Profile tab whether this phone will get alerts while the app is closed.
+async function updatePushStatus() {
+  const el = document.getElementById('push-status');
+  if (!el) return;
+  if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+    el.innerHTML = '⚠️ This browser can’t receive notifications.'; return;
+  }
+  if (Notification.permission === 'denied') {
+    el.innerHTML = '<span style="color:var(--accent2);">🔕 Notifications are blocked.</span> Allow them in your phone’s Settings → Apps → Guardian (or Chrome) → Notifications.';
+    return;
+  }
+  if (Notification.permission !== 'granted') {
+    el.innerHTML = '🔔 Notifications aren’t enabled yet — tap the button below to turn them on.'; return;
+  }
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    el.innerHTML = sub
+      ? '<span style="color:var(--accent);">✅ Notifications are on for this phone.</span>'
+      : '🔔 Allowed, but this phone isn’t registered yet — tap the button below.';
+  } catch (e) { el.textContent = ''; }
+}
+
 async function sendTestNotification() {
   if (!('Notification' in window) || !('serviceWorker' in navigator)) { toast('Notifications are not supported here', 'err'); return; }
   if (Notification.permission === 'default') await Notification.requestPermission();
@@ -1106,8 +1157,11 @@ async function sendTestNotification() {
   }
   const btn = document.getElementById('btn-test-push');
   btn.disabled = true;
+  vibrateDevice(2);  // in-app vibration check — the phone should buzz right now
   try {
-    if (!(await subscribePush())) throw new Error('Could not register this device for notifications');
+    const ok = await subscribePush();
+    updatePushStatus();
+    if (!ok) throw new Error('Could not register this device for notifications');
     const r = await api('/api/push/test', 'POST');
     toast(`Lock your phone or close the app now — a test notification arrives in about ${r.delay_seconds} seconds`);
   } catch(e) { toast(e.message || 'Test failed', 'err'); }
@@ -1241,10 +1295,21 @@ async function api(path, method = 'GET', body = null) {
 }
 
 // ── TABS & VIEWS ──────────────────────────
+function toggleTabMenu(open) {
+  const bar = document.getElementById('tab-menu-bar');
+  const show = open === undefined ? !bar.classList.contains('open') : open;
+  bar.classList.toggle('open', show);
+  document.getElementById('tab-toggle').setAttribute('aria-expanded', String(show));
+}
+// Close the menu when tapping anywhere else, or pressing Escape.
+document.addEventListener('click', e => { if (!e.target.closest('#tab-menu-bar')) toggleTabMenu(false); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') toggleTabMenu(false); });
+
 function switchTab(name) {
-  document.querySelectorAll('.tab').forEach((t, i) => {
-    t.classList.toggle('active', ['home','checkin','guardians','profile','inbox','monitor','log'][i] === name);
-  });
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  const item = document.querySelector(`.tab[data-tab="${name}"]`);
+  if (item) document.getElementById('tab-current').textContent = item.textContent.trim();
+  toggleTabMenu(false);
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   if (name === 'home')      { loadHomeJourneys(); if (currentSession) showView('active'); }
@@ -1252,7 +1317,10 @@ function switchTab(name) {
   if (name === 'profile')   loadProfile();
   if (name === 'inbox')     showInboxView('list');
   if (name === 'log')       loadLog();
-  if (name === 'monitor')   { loadSessions(); loadEmergencyNumbers(); loadFeedback(); loadBetaApplicants(); }
+  if (name === 'monitor')    loadSessions();
+  if (name === 'numbers')    loadEmergencyNumbers();
+  if (name === 'applicants') loadBetaApplicants();
+  if (name === 'feedback')   loadFeedback();
 }
 
 function showView(view) {
@@ -1503,7 +1571,7 @@ function setUser(user) {
   document.getElementById('auth-overlay').style.display = 'none';
   document.getElementById('inp-name').value = user.username;
   document.getElementById('hdr-sub').textContent = `SIGNED IN AS ${user.username.toUpperCase()}`;
-  document.getElementById('tab-monitor-btn').style.display = user.is_admin ? '' : 'none';
+  document.querySelectorAll('.admin-only').forEach(el => { el.style.display = user.is_admin ? '' : 'none'; });
   document.getElementById('btn-logout').style.display = 'inline';
   loadHomeJourneys();
   loadSavedGuardians();
@@ -1735,6 +1803,7 @@ async function loadProfile() {
     document.getElementById('pf-medical-notes').value = p.medical_notes || '';
     profilePhotoDataUrl = p.photo || '';
     renderProfileAvatar();
+    updatePushStatus();
   } catch(e) { toast(e.message, 'err'); }
   loadSavedGuardians();  // guardians count toward the profile's readiness score
 }
