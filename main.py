@@ -1094,6 +1094,19 @@ def _record_push(user_id: str, results: list[dict], note: str = "") -> None:
     PUSH_LAST_RESULTS[user_id] = {"at": datetime.now(timezone.utc).isoformat(), "results": results, "note": note}
 
 
+_VAPID_SIGNER: dict = {}
+
+
+def vapid_signer():
+    """The VAPID key as a py_vapid object. pywebpush can't parse a PEM *string* (it fails with "Could not
+    deserialize key data"), so every push used to fail — hand it a ready-made key object instead."""
+    from py_vapid import Vapid
+    pem = VAPID["private"]
+    if _VAPID_SIGNER.get("pem") != pem:
+        _VAPID_SIGNER.update(pem=pem, signer=Vapid.from_pem(pem.encode()))
+    return _VAPID_SIGNER["signer"]
+
+
 def vapid_keys_consistent() -> bool:
     """True when the configured private key really belongs to the public key handed to browsers.
     A mismatch makes every push fail (the push service rejects the signature)."""
@@ -1136,7 +1149,7 @@ async def send_push_to_user(user_id: str, title: str, body_text: str, level: int
                 "keys": {"p256dh": sub.p256dh, "auth": sub.auth},
             },
             data=payload,
-            vapid_private_key=VAPID["private"],
+            vapid_private_key=vapid_signer(),
             vapid_claims={"sub": push_contact if push_contact.startswith(("mailto:", "https://")) else f"mailto:{push_contact}"},
             # ttl=0 (the default) makes the push service drop the message if the phone is
             # asleep; keep it queued for an hour and mark it urgent so it wakes the device.

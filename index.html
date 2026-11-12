@@ -1179,7 +1179,7 @@ async function sendTestNotification() {
   }
   const btn = document.getElementById('btn-test-push');
   btn.disabled = true;
-  vibrateDevice(2);  // in-app vibration check — the phone should buzz right now
+  if (navigator.vibrate) navigator.vibrate([300, 120, 300]);  // in-app vibration check — the phone should buzz now
   try {
     const ok = await subscribePush();
     updatePushStatus();
