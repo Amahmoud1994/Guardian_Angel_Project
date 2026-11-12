@@ -196,3 +196,16 @@ async def test_config_reports_invite_only(client, monkeypatch):
     assert '"inviteOnly": true' in (await client.get("/config.js")).text
     monkeypatch.delenv("BETA_INVITE_ONLY")
     assert '"inviteOnly": false' in (await client.get("/config.js")).text
+
+
+@pytest.mark.parametrize("raw", [
+    "a@example.com,Mia@Example.com",
+    "a@example.com, mia@example.com",
+    '"a@example.com,mia@example.com"',
+    "a@example.com; mia@example.com",
+    "a@example.com\nmia@example.com",
+    "'a@example.com' , <mia@example.com>",
+])
+def test_allowed_emails_setting_is_forgiving(monkeypatch, raw):
+    monkeypatch.setenv("BETA_ALLOWED_EMAILS", raw)
+    assert main.beta_allowed_emails() == {"a@example.com", "mia@example.com"}

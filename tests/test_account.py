@@ -249,3 +249,8 @@ async def test_icon_route_cannot_escape_icons_folder(client, name):
 async def test_icon_route_serves_icons(client):
     r = await client.get("/icons/icon-192.png")
     assert r.status_code == 200 and r.headers["content-type"] == "image/png"
+
+
+async def test_health_reports_storage_type(client):
+    data = (await client.get("/health")).json()
+    assert data["status"] == "ok" and data["persistent_storage"] is main.IS_POSTGRES

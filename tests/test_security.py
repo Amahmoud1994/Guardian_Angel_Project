@@ -21,11 +21,12 @@ async def test_test_email_is_admin_only(client, app, monkeypatch):
     assert (await client.post("/api/test-email", json=payload)).status_code == 403
 
     monkeypatch.setenv("SMTP_USER", "")  # admin passes the auth check, but nothing is actually sent
+    monkeypatch.delenv("RESEND_API_KEY", raising=False)
     async with new_client(app) as admin:
         await login_as_admin(admin)
         assert (await admin.post("/api/test-email", json={"to": "not-an-email"})).status_code == 400
         r = await admin.post("/api/test-email", json=payload)
-        assert r.status_code == 400 and "SMTP not configured" in r.json()["detail"]
+        assert r.status_code == 400 and "not configured" in r.json()["detail"]
 
 
 async def test_email_status_is_admin_only(client):
